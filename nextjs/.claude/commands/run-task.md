@@ -152,13 +152,15 @@ Falhou? Corrija a causa raiz e rode novamente. Testes com 100% de sucesso são p
 <critical>Só execute com: todas as tasks completas em tasks.md + todos os reviews APPROVED + QA APROVADO. Sempre use `--no-ff` no merge.</critical>
 
 1. Confirme as três condições acima nos arquivos correspondentes.
-2. `git checkout develop && git pull origin develop`
-3. `git merge feature/[num-nome-funcionalidade] --no-ff -m "merge: feature/[num-nome-funcionalidade] into develop"`
-4. Gere a tag seguindo **Semantic Versioning**:
-   - Última tag: `git tag --sort=-v:refname | head -1` (sem tag existente, inicie em `v0.1.0`)
-   - **feat** → MINOR (`v1.0.0` → `v1.1.0`) | **fix** → PATCH (`v1.0.0` → `v1.0.1`) | **breaking change** → MAJOR (`v1.0.0` → `v2.0.0`)
+2. Commite na branch da feature o bump de versão e o changelog gerados pelo QA, se ainda não commitados: `git add package.json CHANGELOG.md && git commit -m "chore(release): prepare v[X.Y.Z]"`
+3. `git checkout develop && git pull origin develop`
+4. `git merge feature/[num-nome-funcionalidade] --no-ff -m "merge: feature/[num-nome-funcionalidade] into develop"`
+5. Gere a tag seguindo **Semantic Versioning**, usando como fonte a versão que o QA gravou no `package.json` (Etapa 12 da qa-best-practices):
+   - Leia a versão: `node -p "require('./package.json').version"` → a tag é `v[essa-versão]`
+   - Confira que a tag ainda não existe (`git tag --sort=-v:refname | head -1`) e que é maior que a última — `package.json` e tag git nunca podem divergir
+   - Fallback (se o QA não fez o bump): **feat** → MINOR | **fix** → PATCH | **breaking change** → MAJOR sobre a última tag (sem tag existente, inicie em `v0.1.0`) e atualize o `package.json` para a mesma versão antes de taggear
    - `git tag -a v[X.Y.Z] -m "release: v[X.Y.Z] - [breve descrição da feature]"`
-5. `git push origin develop && git push origin v[X.Y.Z]`
+6. `git push origin develop && git push origin v[X.Y.Z]`
 
 ## Definition of Done (checklist por tarefa)
 

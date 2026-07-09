@@ -206,7 +206,7 @@ Para cada endpoint, documente:
 
 ### Conformidade com Padrões
 
-[Pesquise as rules na pasta @.claude/rules que se encaixam e se apliquem nesta techspec e liste-as abaixo:]
+[Liste as skills do projeto consultadas e como esta techspec se conforma a elas (nextjs-clean-architecture, next-best-practices, shadcn, responsive-design, etc.), além das rules em @.claude/rules se existirem. Indique também quais skills devem ser ativadas em cada fase da implementação (UI: frontend-design + shadcn; responsividade: responsive-design; arquitetura: next-best-practices + nextjs-clean-architecture; E2E: playwright-generate-test). Desvios exigem justificativa e alternativa conforme:]
 
 ### Arquivos Relevantes e Dependentes
 
