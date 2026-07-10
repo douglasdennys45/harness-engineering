@@ -10,8 +10,9 @@ A ideia central: em vez de pedir código diretamente ao agente, o processo forç
 |---|---|---|
 | [`golang/`](golang/README.md) | Backend — microserviços | Go 1.26, Fiber v3, PostgreSQL 18, NATS JetStream, uber-go/fx, Clean Architecture em monorepo |
 | [`nextjs/`](nextjs/README.md) | Frontend — aplicações web | Next.js (App Router), React Server Components, TypeScript, Tailwind, shadcn/ui, integração com backend 100% via SSR |
+| [`angular/`](angular/README.md) | Frontend — microfrontends com SSR | Angular (signals, zoneless), @angular/ssr, Native Federation, Nx, Angular Material, integração com backend 100% via SSR/BFF |
 
-Ambos compartilham o mesmo desenho de processo; mudam apenas as skills técnicas, os critérios de review/QA e as convenções de arquitetura de cada stack.
+Todos compartilham o mesmo desenho de processo; mudam apenas as skills técnicas, os critérios de review/QA e as convenções de arquitetura de cada stack.
 
 ## O Pipeline (comum a todos os harnesses)
 
@@ -42,8 +43,8 @@ Cada diretório é um `.claude/` completo, pronto para ser copiado para um proje
 ├── skills/       # Skills de processo (review, QA, bugfix, brainstorming, PRD, commits)
 │                 # + skills técnicas da stack (consultadas conforme o escopo)
 ├── templates/    # Estrutura obrigatória de cada artefato (PRD, techspec, tasks)
-└── rules/        # Arquitetura canônica (golang) — no nextjs esse papel é da
-                  # skill nextjs-clean-architecture
+└── rules/        # Arquitetura canônica (golang) — no nextjs e no angular esse papel
+                  # é das skills nextjs-clean-architecture / angular-clean-architecture
 ```
 
 **Padrão de design dos agents:** cada agent é um arquivo fino (~40-50 linhas) contendo apenas o contrato com o workflow (caminhos de saída fixos, valores exatos de status, regras inegociáveis) e delegando todo o processo para uma skill obrigatória (`task-reviewer-best-practices`, `qa-best-practices`, `bugfix-best-practices`) — que é a única fonte de verdade do pipeline daquele agent.
