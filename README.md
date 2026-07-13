@@ -9,6 +9,7 @@ A ideia central: em vez de pedir código diretamente ao agente, o processo forç
 | Harness | Foco | Stack |
 |---|---|---|
 | [`golang/`](golang/README.md) | Backend — microserviços | Go 1.26, Fiber v3, PostgreSQL 18, NATS JetStream, uber-go/fx, Clean Architecture em monorepo |
+| [`nodejs/`](nodejs/README.md) | Backend — microserviços | Node.js 22, TypeScript 5, Hyper-Express, PostgreSQL 18, NATS JetStream, awilix, Clean Architecture em monorepo pnpm |
 | [`nextjs/`](nextjs/README.md) | Frontend — aplicações web | Next.js (App Router), React Server Components, TypeScript, Tailwind, shadcn/ui, integração com backend 100% via SSR |
 | [`angular/`](angular/README.md) | Frontend — microfrontends com SSR | Angular (signals, zoneless), @angular/ssr, Native Federation, Nx, Angular Material, integração com backend 100% via SSR/BFF |
 
@@ -43,7 +44,7 @@ Cada diretório é um `.claude/` completo, pronto para ser copiado para um proje
 ├── skills/       # Skills de processo (review, QA, bugfix, brainstorming, PRD, commits)
 │                 # + skills técnicas da stack (consultadas conforme o escopo)
 ├── templates/    # Estrutura obrigatória de cada artefato (PRD, techspec, tasks)
-└── rules/        # Arquitetura canônica (golang) — no nextjs e no angular esse papel
+└── rules/        # Arquitetura canônica (golang e nodejs) — no nextjs e no angular esse papel
                   # é das skills nextjs-clean-architecture / angular-clean-architecture
 ```
 
