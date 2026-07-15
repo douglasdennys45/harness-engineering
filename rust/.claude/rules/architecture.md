@@ -7,12 +7,12 @@ Este documento define a arquitetura do projeto, suas camadas, regras de dependen
 O projeto segue **Clean Architecture** com inversao de dependencia em uma estrutura de **monorepo** com multiplos microservicos. Camadas internas nunca importam camadas externas. Injecao de dependencia e feita por **composition root manual** (construcao explicita no `main` de cada binario, com `Arc<dyn Trait>`). O monorepo suporta **N apps independentes** (APIs e Consumers) que compartilham bibliotecas via `pkg/`.
 
 ```
-apps/<app-name>/src/bin/<binary>.rs     Entry points (um por binario)
+apps/<app-name>/<binary>.rs     Entry points (um por binario)
        |
        v
-apps/<app-name>/src/domain/             Entidades, traits (sem dependencias de infraestrutura)
-apps/<app-name>/src/application/        Implementacoes de use cases (depende apenas de domain)
-apps/<app-name>/src/infrastructure/     Controllers, repos, publisher, subscriber, config
+apps/<app-name>/domain/             Entidades, traits (sem dependencias de infraestrutura)
+apps/<app-name>/application/        Implementacoes de use cases (depende apenas de domain)
+apps/<app-name>/infrastructure/     Controllers, repos, publisher, subscriber, config
        |
        v
 pkg/                                    Crate reutilizavel compartilhado entre apps
@@ -40,13 +40,13 @@ pkg/                                    Crate reutilizavel compartilhado entre a
 
 | Tipo | Proposito | Exemplo |
 |---|---|---|
-| **API** | Servidor HTTP expondo endpoints REST (Axum) | `apps/user/src/bin/api.rs` |
-| **Consumer** | Processo em background consumindo eventos NATS JetStream | `apps/user/src/bin/consumer.rs` |
+| **API** | Servidor HTTP expondo endpoints REST (Axum) | `apps/user/api.rs` |
+| **Consumer** | Processo em background consumindo eventos NATS JetStream | `apps/user/consumer.rs` |
 
 ### Regra de Dependencia
 
 ```
-Domain  <--  Application  <--  Infrastructure  <--  src/bin/
+Domain  <--  Application  <--  Infrastructure  <--  api.rs / consumer.rs
   ^                                  |
   |                                  v
   +--- nunca depende de -------->  pkg/
@@ -56,7 +56,7 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 - `application/` importa apenas `crate::domain`.
 - `infrastructure/` importa `crate::domain`, `pkg` e crates externas (axum, sqlx, async-nats).
 - `pkg/` nunca importa nada dos apps.
-- `src/bin/<binary>.rs` importa tudo para compor o grafo de dependencias **daquele binario especifico** (composition root).
+- `<binary>.rs` importa tudo para compor o grafo de dependencias **daquele binario especifico** (composition root).
 
 ---
 
@@ -71,34 +71,33 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 │
 ├── pkg/                                             # crate: pkg (compartilhado)
 │   ├── Cargo.toml
-│   └── src/
-│       ├── lib.rs                                   # pub mod postgres; nats; httpserver; controller; logger; event;
-│       ├── postgres/
-│       │   ├── mod.rs
-│       │   ├── conn.rs                              # new_pool + pool config
-│       │   ├── tx.rs                                # helpers de transaction
-│       │   └── health.rs                            # ping health check
-│       ├── nats/
-│       │   ├── mod.rs
-│       │   ├── conn.rs                              # connect + reconnect
-│       │   ├── stream.rs                            # ensure_stream
-│       │   ├── publisher.rs                         # Publisher generico
-│       │   └── subscriber.rs                        # subscribe com consumer duravel
-│       ├── httpserver/
-│       │   ├── mod.rs
-│       │   └── axum.rs                              # with_default_middlewares (pilha tower-http)
-│       ├── controller/
-│       │   ├── mod.rs
-│       │   ├── context.rs                           # RequestContext extractor
-│       │   ├── validated.rs                         # ValidatedJson<T> (bind + validacao)
-│       │   └── error.rs                             # ApiError + HttpDomainError + ErrorResponse
-│       ├── logger/
-│       │   └── mod.rs                               # setup tracing JSON com service e version
-│       └── event/                                   # contratos de eventos compartilhados
-│           ├── mod.rs
-│           ├── envelope.rs                          # Envelope base
-│           ├── user.rs                              # subjects + data structs
-│           └── billing.rs                           # subjects + data structs
+│   ├── lib.rs                                   # pub mod postgres; nats; httpserver; controller; logger; event;
+│   ├── postgres/
+│   │   ├── mod.rs
+│   │   ├── conn.rs                              # new_pool + pool config
+│   │   ├── tx.rs                                # helpers de transaction
+│   │   └── health.rs                            # ping health check
+│   ├── nats/
+│   │   ├── mod.rs
+│   │   ├── conn.rs                              # connect + reconnect
+│   │   ├── stream.rs                            # ensure_stream
+│   │   ├── publisher.rs                         # Publisher generico
+│   │   └── subscriber.rs                        # subscribe com consumer duravel
+│   ├── httpserver/
+│   │   ├── mod.rs
+│   │   └── axum.rs                              # with_default_middlewares (pilha tower-http)
+│   ├── controller/
+│   │   ├── mod.rs
+│   │   ├── context.rs                           # RequestContext extractor
+│   │   ├── validated.rs                         # ValidatedJson<T> (bind + validacao)
+│   │   └── error.rs                             # ApiError + HttpDomainError + ErrorResponse
+│   ├── logger/
+│   │   └── mod.rs                               # setup tracing JSON com service e version
+│   └── event/                                   # contratos de eventos compartilhados
+│       ├── mod.rs
+│       ├── envelope.rs                          # Envelope base
+│       ├── user.rs                              # subjects + data structs
+│       └── billing.rs                           # subjects + data structs
 │
 ├── migrations/                                      # migrations SQL por app (sqlx-cli)
 │   ├── user/
@@ -112,62 +111,60 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 │   ├── user/                                        # crate: user
 │   │   ├── Cargo.toml
 │   │   ├── Dockerfile
-│   │   ├── src/
-│   │   │   ├── lib.rs                               # pub mod domain; application; infrastructure;
-│   │   │   ├── bin/
-│   │   │   │   ├── api.rs                           # API HTTP — composition root
-│   │   │   │   └── consumer.rs                      # Consumer NATS — composition root
-│   │   │   ├── domain/
+│   │   ├── lib.rs                                   # pub mod domain; application; infrastructure;
+│   │   ├── api.rs                                   # API HTTP — composition root
+│   │   ├── consumer.rs                              # Consumer NATS — composition root
+│   │   ├── domain/
+│   │   │   ├── mod.rs
+│   │   │   ├── entity/
 │   │   │   │   ├── mod.rs
-│   │   │   │   ├── entity/
-│   │   │   │   │   ├── mod.rs
-│   │   │   │   │   ├── user.rs                      # Struct de dominio + construtor
-│   │   │   │   │   └── errors.rs                    # DomainError (thiserror)
-│   │   │   │   ├── usecase/
-│   │   │   │   │   ├── mod.rs
-│   │   │   │   │   └── user/                        # Submodulo por contexto de dominio
-│   │   │   │   │       ├── mod.rs
-│   │   │   │   │       ├── create.rs                # trait CreateUseCase
-│   │   │   │   │       ├── get_by_id.rs             # trait GetByIdUseCase
-│   │   │   │   │       └── list.rs                  # trait ListUseCase
-│   │   │   │   ├── repository/
-│   │   │   │   │   ├── mod.rs
-│   │   │   │   │   └── user_repository.rs           # Trait de repositorio
-│   │   │   │   ├── event/
-│   │   │   │   │   ├── mod.rs
-│   │   │   │   │   └── user_event.rs                # Trait de eventos/mensageria
-│   │   │   │   └── <lib>/                           # Traits para libs externas
-│   │   │   │       └── <name>.rs                    # Trait de inversao de dependencia
-│   │   │   ├── application/
+│   │   │   │   ├── user.rs                          # Struct de dominio + construtor
+│   │   │   │   └── errors.rs                        # DomainError (thiserror)
+│   │   │   ├── usecase/
 │   │   │   │   ├── mod.rs
-│   │   │   │   └── usecase/
+│   │   │   │   └── user/                            # Submodulo por contexto de dominio
 │   │   │   │       ├── mod.rs
-│   │   │   │       └── user/                        # Submodulo por contexto de dominio
-│   │   │   │           ├── mod.rs
-│   │   │   │           ├── create_usecase.rs        # Impl do use case (+ mod tests no proprio arquivo)
-│   │   │   │           ├── get_by_id_usecase.rs
-│   │   │   │           └── list_usecase.rs
-│   │   │   └── infrastructure/
+│   │   │   │       ├── create.rs                    # trait CreateUseCase
+│   │   │   │       ├── get_by_id.rs                 # trait GetByIdUseCase
+│   │   │   │       └── list.rs                      # trait ListUseCase
+│   │   │   ├── repository/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── user_repository.rs               # Trait de repositorio
+│   │   │   ├── event/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── user_event.rs                    # Trait de eventos/mensageria
+│   │   │   └── <lib>/                               # Traits para libs externas
+│   │   │       └── <name>.rs                        # Trait de inversao de dependencia
+│   │   ├── application/
+│   │   │   ├── mod.rs
+│   │   │   └── usecase/
 │   │   │       ├── mod.rs
-│   │   │       ├── config/
-│   │   │       │   ├── mod.rs
-│   │   │       │   └── config.rs                    # AppConfig + load
-│   │   │       ├── controller/
-│   │   │       │   ├── mod.rs
-│   │   │       │   ├── errors.rs                    # impl HttpDomainError p/ DomainError DESTE app
-│   │   │       │   └── user_controller.rs           # Controllers HTTP (Axum) — apenas APIs
-│   │   │       ├── repository/
-│   │   │       │   ├── mod.rs
-│   │   │       │   └── user_repository.rs           # Implementacao PostgreSQL (sqlx)
-│   │   │       ├── publisher/
-│   │   │       │   ├── mod.rs
-│   │   │       │   └── user_publisher.rs            # Implementacao NATS JetStream
-│   │   │       ├── subscriber/
-│   │   │       │   ├── mod.rs
-│   │   │       │   └── user_subscriber.rs           # Consumer NATS — apenas Consumers
-│   │   │       └── adapter/
+│   │   │       └── user/                            # Submodulo por contexto de dominio
 │   │   │           ├── mod.rs
-│   │   │           └── <lib>_adapter.rs             # Implementacoes de traits de libs externas
+│   │   │           ├── create_usecase.rs            # Impl do use case (+ mod tests no proprio arquivo)
+│   │   │           ├── get_by_id_usecase.rs
+│   │   │           └── list_usecase.rs
+│   │   ├── infrastructure/
+│   │   │   ├── mod.rs
+│   │   │   ├── config/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── config.rs                        # AppConfig + load
+│   │   │   ├── controller/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── errors.rs                        # impl HttpDomainError p/ DomainError DESTE app
+│   │   │   │   └── user_controller.rs               # Controllers HTTP (Axum) — apenas APIs
+│   │   │   ├── repository/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── user_repository.rs               # Implementacao PostgreSQL (sqlx)
+│   │   │   ├── publisher/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── user_publisher.rs                # Implementacao NATS JetStream
+│   │   │   ├── subscriber/
+│   │   │   │   ├── mod.rs
+│   │   │   │   └── user_subscriber.rs               # Consumer NATS — apenas Consumers
+│   │   │   └── adapter/
+│   │   │       ├── mod.rs
+│   │   │       └── <lib>_adapter.rs                 # Implementacoes de traits de libs externas
 │   │   └── tests/                                   # testes de integracao (crate separado)
 │   │       ├── testhelper/
 │   │       │   ├── mod.rs
@@ -178,14 +175,12 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 │   └── billing/                                     # mesma estrutura interna
 │       ├── Cargo.toml
 │       ├── Dockerfile
-│       ├── src/
-│       │   ├── lib.rs
-│       │   ├── bin/
-│       │   │   ├── api.rs
-│       │   │   └── consumer.rs
-│       │   ├── domain/
-│       │   ├── application/
-│       │   └── infrastructure/
+│       ├── lib.rs
+│       ├── api.rs
+│       ├── consumer.rs
+│       ├── domain/
+│       ├── application/
+│       ├── infrastructure/
 │       └── tests/
 ```
 
@@ -231,6 +226,11 @@ name = "user"
 version = "0.1.0"
 edition = "2024"
 
+# Fontes na raiz do crate (sem pasta `src/`): o `[lib]` aponta para `lib.rs`
+# e cada `[[bin]]` para `<binary>.rs`, espelhando o crate `pkg`.
+[lib]
+path = "lib.rs"
+
 [dependencies]
 pkg = { path = "../../pkg" }
 axum = { workspace = true }
@@ -239,24 +239,24 @@ tokio = { workspace = true }
 
 [[bin]]
 name = "api"
-path = "src/bin/api.rs"
+path = "api.rs"
 
 [[bin]]
 name = "consumer"
-path = "src/bin/consumer.rs"
+path = "consumer.rs"
 ```
 
-### Convencao de Nomes para `apps/` e `src/bin/`
+### Convencao de Nomes para `apps/` e binarios
 
 - **Apps**: `apps/<app-name>/` -- lowercase (ex: `apps/user/`, `apps/billing/`).
-- **APIs**: `apps/<app>/src/bin/api.rs`.
-- **Consumers**: `apps/<app>/src/bin/consumer.rs`. Se houver multiplos consumers, usar `src/bin/consumer_<dominio>.rs` (nome do binario `consumer-<dominio>` no `[[bin]]`).
-- Cada arquivo em `src/bin/` contem **apenas** o composition root (`main`) daquele binario. Nenhuma logica de negocio.
+- **APIs**: `apps/<app>/api.rs`.
+- **Consumers**: `apps/<app>/consumer.rs`. Se houver multiplos consumers, usar `consumer_<dominio>.rs` (nome do binario `consumer-<dominio>` no `[[bin]]`).
+- Cada binario (`api.rs`, `consumer.rs`) vive na raiz do crate e contem **apenas** o composition root (`main`) daquele binario. Nenhuma logica de negocio.
 - Modulos usam estilo `mod.rs`: 1 diretorio = 1 modulo, espelhando a organizacao por camada.
 
 ---
 
-## Camada de Dominio (`src/domain/`)
+## Camada de Dominio (`domain/`)
 
 A camada de dominio contem **entidades** e **contratos** (traits). Nao possui dependencias de infraestrutura — apenas std e crates de tipos/contratos (`serde`, `chrono`, `uuid`, `thiserror`, `anyhow`, `async-trait`). **Isolada dentro de cada app.**
 
@@ -267,7 +267,7 @@ Structs representando conceitos de dominio. Cada entidade possui um construtor `
 **Padrao:**
 
 ```rust
-// apps/user/src/domain/entity/user.rs
+// apps/user/domain/entity/user.rs
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -310,7 +310,7 @@ impl User {
 Cada app define seu enum de erros de dominio com **thiserror**. A variante `Unexpected` faz a ponte com erros de infraestrutura propagados via **anyhow**.
 
 ```rust
-// apps/user/src/domain/entity/errors.rs
+// apps/user/domain/entity/errors.rs
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -343,7 +343,7 @@ Traits definindo os use cases de dominio. Cada use case e representado por **um 
 **Estrutura de diretorios:**
 
 ```
-src/domain/usecase/
+domain/usecase/
 └── user/
     ├── mod.rs                # pub mod create; get_by_id; list; + re-exports
     ├── create.rs             # trait CreateUseCase
@@ -354,7 +354,7 @@ src/domain/usecase/
 **Padrao:**
 
 ```rust
-// apps/user/src/domain/usecase/user/create.rs
+// apps/user/domain/usecase/user/create.rs
 use async_trait::async_trait;
 
 use crate::domain::entity::{DomainError, User};
@@ -376,7 +376,7 @@ pub trait CreateUseCase: Send + Sync {
 ```
 
 ```rust
-// apps/user/src/domain/usecase/user/get_by_id.rs
+// apps/user/domain/usecase/user/get_by_id.rs
 use async_trait::async_trait;
 use uuid::Uuid;
 
@@ -394,7 +394,7 @@ pub trait GetByIdUseCase: Send + Sync {
 ```
 
 ```rust
-// apps/user/src/domain/usecase/user/list.rs
+// apps/user/domain/usecase/user/list.rs
 use async_trait::async_trait;
 use uuid::Uuid;
 
@@ -434,7 +434,7 @@ Traits definindo contratos de persistencia. Metodos retornam `anyhow::Result` (e
 **Padrao:**
 
 ```rust
-// apps/user/src/domain/repository/user_repository.rs
+// apps/user/domain/repository/user_repository.rs
 use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -466,7 +466,7 @@ Traits definindo contratos de mensageria/eventos.
 **Padrao:**
 
 ```rust
-// apps/user/src/domain/event/user_event.rs
+// apps/user/domain/event/user_event.rs
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -494,7 +494,7 @@ Toda biblioteca externa utilizada no projeto **deve ser acessada via inversao de
 **Estrutura de diretorios:**
 
 ```
-src/domain/
+domain/
 ├── crypt/
 │   └── hasher.rs              # Trait para hashing de senhas
 ├── token/
@@ -506,7 +506,7 @@ src/domain/
 **Padrao:**
 
 ```rust
-// apps/user/src/domain/crypt/hasher.rs
+// apps/user/domain/crypt/hasher.rs
 use anyhow::Result;
 
 #[cfg_attr(test, mockall::automock)]
@@ -525,7 +525,7 @@ pub trait Hasher: Send + Sync {
 
 ---
 
-## Camada de Aplicacao (`src/application/`)
+## Camada de Aplicacao (`application/`)
 
 Contem a **implementacao** dos use cases. Orquestra entidades, repositorios e eventos. **Isolada dentro de cada app.**
 
@@ -536,7 +536,7 @@ Implementacoes dos use cases, organizadas em **submodulos por contexto de domini
 **Estrutura de diretorios:**
 
 ```
-src/application/usecase/
+application/usecase/
 └── user/
     ├── mod.rs
     ├── create_usecase.rs           # struct CreateUseCase + perform (+ mod tests no mesmo arquivo)
@@ -547,7 +547,7 @@ src/application/usecase/
 **Padrao:**
 
 ```rust
-// apps/user/src/application/usecase/user/create_usecase.rs
+// apps/user/application/usecase/user/create_usecase.rs
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -614,7 +614,7 @@ impl crate::domain::usecase::user::CreateUseCase for CreateUseCase {
 
 ---
 
-## Camada de Infraestrutura (`src/infrastructure/`)
+## Camada de Infraestrutura (`infrastructure/`)
 
 Implementa contratos de dominio usando tecnologias concretas e gerencia a configuracao da aplicacao. Cada binario conecta apenas o que precisa.
 
@@ -637,7 +637,7 @@ Ele centraliza:
 
 ```
 pkg/
-└── src/controller/
+└── controller/
     ├── mod.rs                  # re-exports (ApiError, RequestContext, ValidatedJson, ...)
     ├── context.rs              # RequestContext extractor (FromRequestParts)
     ├── validated.rs            # ValidatedJson<T> (FromRequest: parse + validacao)
@@ -647,17 +647,17 @@ pkg/
 **Estrutura de cada app (so o codigo especifico):**
 
 ```
-apps/user/src/infrastructure/controller/
+apps/user/infrastructure/controller/
 ├── mod.rs
 ├── errors.rs                   # impl HttpDomainError p/ o DomainError DESTE app
 ├── user_controller.rs          # UserController (usa a infra do pkg)
 └── order_controller.rs         # OrderController (usa a infra do pkg)
 ```
 
-**`pkg/src/controller/context.rs` — RequestContext:**
+**`pkg/controller/context.rs` — RequestContext:**
 
 ```rust
-// pkg/src/controller/context.rs
+// pkg/controller/context.rs
 use axum::{extract::FromRequestParts, http::request::Parts};
 
 /// RequestContext contem dados extraidos automaticamente de toda request.
@@ -696,10 +696,10 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestContext {
 
 (No Axum 0.8, `FromRequestParts`/`FromRequest` usam async fn nativo — sem `#[async_trait]`.)
 
-**`pkg/src/controller/error.rs` — ApiError + HttpDomainError (mapeamento de erros):**
+**`pkg/controller/error.rs` — ApiError + HttpDomainError (mapeamento de erros):**
 
 ```rust
-// pkg/src/controller/error.rs
+// pkg/controller/error.rs
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -765,12 +765,12 @@ impl IntoResponse for ApiError {
 }
 ```
 
-**`pkg/src/controller/validated.rs` — ValidatedJson (bind + validacao automatica):**
+**`pkg/controller/validated.rs` — ValidatedJson (bind + validacao automatica):**
 
 O projeto utiliza o crate **`validator`** como engine de validacao. O extractor `ValidatedJson<T>` executa parse do JSON e validacao das tags `#[validate]` automaticamente — o handler so e executado se o body for valido.
 
 ```rust
-// pkg/src/controller/validated.rs
+// pkg/controller/validated.rs
 use axum::{
     extract::{FromRequest, Request},
     Json,
@@ -824,12 +824,12 @@ fn format_validation_errors(errors: &ValidationErrors) -> String {
 }
 ```
 
-**Pilha padrao de middlewares (`pkg/src/httpserver/axum.rs`):**
+**Pilha padrao de middlewares (`pkg/httpserver/axum.rs`):**
 
 IMPORTANTE (armadilha do Axum): `.layer()` so envolve rotas **ja adicionadas** ao `Router`. Por isso o `pkg` expoe uma funcao que **aplica** os middlewares em cima do Router pronto — nunca um Router vazio pre-configurado:
 
 ```rust
-// pkg/src/httpserver/axum.rs
+// pkg/httpserver/axum.rs
 use std::time::Duration;
 
 use axum::Router;
@@ -920,7 +920,7 @@ pub enum Currency { BRL, USD, EUR }
 **Registro dos erros no app (impl do trait, papel do ProvideErrorMapper):**
 
 ```rust
-// apps/user/src/infrastructure/controller/errors.rs
+// apps/user/infrastructure/controller/errors.rs
 use axum::http::StatusCode;
 use pkg::controller::HttpDomainError;
 
@@ -946,7 +946,7 @@ O `match` e exaustivo: ao adicionar uma nova variante de erro, o compilador **ob
 #### Controller Concreto — Exemplo Simples (sem transaction)
 
 ```rust
-// apps/user/src/infrastructure/controller/user_controller.rs
+// apps/user/infrastructure/controller/user_controller.rs
 use std::sync::Arc;
 
 use axum::{
@@ -1070,7 +1070,7 @@ pub struct ListUsersFilter {
 Quando um endpoint precisa executar **multiplas operacoes atomicas** (ex: criar order + items + atualizar estoque), o controller orquestra a transaction via `pool.begin()` e metodos `*_with_tx` dos repositorios concretos:
 
 ```rust
-// apps/billing/src/infrastructure/controller/order_controller.rs
+// apps/billing/infrastructure/controller/order_controller.rs
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -1223,14 +1223,14 @@ tx.commit().await.context("commit tx")?;
 // rollback e AUTOMATICO no drop se o commit nao acontecer (early return, `?`, panic)
 ```
 
-Helpers opcionais vivem em `pkg/src/postgres/tx.rs`. A garantia central: **nenhum caminho de erro deixa transaction aberta** — o drop da `Transaction` sem commit executa rollback.
+Helpers opcionais vivem em `pkg/postgres/tx.rs`. A garantia central: **nenhum caminho de erro deixa transaction aberta** — o drop da `Transaction` sem commit executa rollback.
 
 #### Repositorio com Metodos `*_with_tx`
 
 Quando um repositorio participa de uma transaction externa, expoe **metodos inerentes na implementacao concreta** (fora do trait de dominio, que nao pode conhecer `sqlx::Transaction`). Controllers que orquestram tx recebem o repositorio **concreto** (`Arc<PostgresOrderRepository>`) — permitido pois controller e repositorio sao ambos infraestrutura:
 
 ```rust
-// apps/billing/src/domain/repository/order_repository.rs
+// apps/billing/domain/repository/order_repository.rs
 use anyhow::Result;
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -1247,7 +1247,7 @@ pub trait OrderRepository: Send + Sync {
 ```
 
 ```rust
-// apps/billing/src/infrastructure/repository/order_repository.rs
+// apps/billing/infrastructure/repository/order_repository.rs
 use anyhow::{Context, Result};
 use sqlx::{Postgres, Transaction};
 
@@ -1295,7 +1295,7 @@ impl PostgresOrderRepository {
 #### Regras do Controller
 
 - `RequestContext`, `ValidatedJson`, `ApiError`, `HttpDomainError` e `ErrorResponse` vivem em **`pkg/controller/`**. Nenhum app reimplementa essa logica.
-- Arquivo: `<name>_controller.rs` (ex: `user_controller.rs`) em `src/infrastructure/controller/`.
+- Arquivo: `<name>_controller.rs` (ex: `user_controller.rs`) em `infrastructure/controller/`.
 - Struct: `<Name>Controller` com os use cases como campos `Arc<dyn Trait>`.
 - Construtor: `new(deps...) -> Self`.
 - Dependencias sao **traits de dominio de use case**; repositorios **concretos** + `PgPool` apenas quando o handler orquestra transaction.
@@ -1318,7 +1318,7 @@ Handlers de consumo NATS JetStream. Cada subscriber consome de um subject especi
 **Padrao:**
 
 ```rust
-// apps/billing/src/infrastructure/subscriber/user_subscriber.rs
+// apps/billing/infrastructure/subscriber/user_subscriber.rs
 use std::sync::Arc;
 
 use async_nats::jetstream::{AckKind, Message};
@@ -1408,7 +1408,7 @@ Implementacoes de repositorio usando PostgreSQL via sqlx. Queries SQL escritas m
 **Padrao:**
 
 ```rust
-// apps/user/src/infrastructure/repository/user_repository.rs
+// apps/user/infrastructure/repository/user_repository.rs
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -1566,7 +1566,7 @@ Implementacoes de eventos usando NATS JetStream, via `Publisher` generico do `pk
 **Padrao:**
 
 ```rust
-// apps/user/src/infrastructure/publisher/user_publisher.rs
+// apps/user/infrastructure/publisher/user_publisher.rs
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -1628,7 +1628,7 @@ Implementacoes concretas dos traits de bibliotecas externas definidos em `domain
 **Padrao:**
 
 ```rust
-// apps/user/src/infrastructure/adapter/argon2_adapter.rs
+// apps/user/infrastructure/adapter/argon2_adapter.rs
 use anyhow::{anyhow, Result};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -1676,7 +1676,7 @@ Configuracao da aplicacao carregada de variaveis de ambiente.
 **`config.rs`** -- Struct de configuracao e carregamento:
 
 ```rust
-// apps/user/src/infrastructure/config/config.rs
+// apps/user/infrastructure/config/config.rs
 use std::env;
 
 pub struct AppConfig {
@@ -1734,8 +1734,8 @@ fn env_parse<T: std::str::FromStr>(key: &str, fallback: T) -> T {
 **Regras:**
 - `config/` contem **apenas** o `AppConfig` e o carregamento de env (`dotenvy::dotenv().ok()` e chamado no inicio do `main`).
 - O papel do "modulo de infraestrutura compartilhada" (conexoes Postgres/NATS) e exercido pelos construtores do `pkg` (`pkg::postgres::new_pool`, `pkg::nats::connect`) chamados no **composition root** de cada binario.
-- Registro de rotas e startup do servidor ficam no **`src/bin/api.rs`**, NAO na config.
-- Logica de startup do subscriber fica no **`src/bin/consumer.rs`**.
+- Registro de rotas e startup do servidor ficam no **`api.rs`**, NAO na config.
+- Logica de startup do subscriber fica no **`consumer.rs`**.
 - Cleanup de conexoes acontece no fim do `main`, na ordem inversa da criacao.
 
 ---
@@ -1756,7 +1756,7 @@ Crate reutilizavel compartilhado entre todos os apps. Nunca importa nada dos app
 **Padroes principais:**
 
 ```rust
-// pkg/src/postgres/conn.rs
+// pkg/postgres/conn.rs
 use std::time::Duration;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};
@@ -1789,7 +1789,7 @@ pub async fn new_pool(cfg: &Config) -> anyhow::Result<PgPool> {
 ```
 
 ```rust
-// pkg/src/nats/conn.rs
+// pkg/nats/conn.rs
 pub async fn connect(url: &str, name: &str) -> anyhow::Result<async_nats::Client> {
     let client = async_nats::ConnectOptions::new()
         .name(name)
@@ -1801,7 +1801,7 @@ pub async fn connect(url: &str, name: &str) -> anyhow::Result<async_nats::Client
 ```
 
 ```rust
-// pkg/src/nats/publisher.rs
+// pkg/nats/publisher.rs
 use anyhow::{Context, Result};
 use async_nats::jetstream;
 
@@ -1837,7 +1837,7 @@ impl Publisher {
 ```
 
 ```rust
-// pkg/src/logger/mod.rs
+// pkg/logger/mod.rs
 use tracing_subscriber::EnvFilter;
 
 pub fn setup(service: &str, version: &str, level: &str) {
@@ -1864,10 +1864,10 @@ pub fn setup(service: &str, version: &str, level: &str) {
 
 Nao ha framework de DI: cada binario compoe seu proprio grafo de dependencias **explicitamente** no `main`, de baixo para cima (infra -> repos/publishers/adapters -> use cases -> controllers/subscribers), embrulhando implementacoes em `Arc<dyn Trait>`. O compilador garante em compile time que nenhuma dependencia falta — o equivalente do grafo do FX, sem runtime.
 
-### Composicao no `src/bin/api.rs` da API
+### Composicao no `api.rs` da API
 
 ```rust
-// apps/user/src/bin/api.rs
+// apps/user/api.rs
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -1962,12 +1962,12 @@ async fn shutdown_signal() {
 }
 ```
 
-### Composicao no `src/bin/consumer.rs` do Consumer
+### Composicao no `consumer.rs` do Consumer
 
 Cada binario de consumer compoe seu proprio grafo. **Sem Axum, sem controllers, sem rotas.**
 
 ```rust
-// apps/billing/src/bin/consumer.rs
+// apps/billing/consumer.rs
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -2078,8 +2078,8 @@ async fn shutdown_signal() {
 
 1. **Infraestrutura compartilhada primeiro** em todo binario: `AppConfig::load()`, `pkg::postgres::new_pool`, `pkg::nats::connect`.
 2. **Cada binario compoe apenas o que precisa.** Uma API compoe controllers; um consumer compoe subscribers. Nenhum compoe as dependencias do outro.
-3. **Rotas e startup do servidor** sao definidos no `src/bin/api.rs`, nao em modulo compartilhado.
-4. **`ensure_stream` e o loop do subscriber** sao definidos no `src/bin/consumer.rs`, nao em modulo compartilhado.
+3. **Rotas e startup do servidor** sao definidos no `api.rs`, nao em modulo compartilhado.
+4. **`ensure_stream` e o loop do subscriber** sao definidos no `consumer.rs`, nao em modulo compartilhado.
 5. **Construcao bottom-up explicita**: infra -> repos/publishers/adapters -> use cases -> controllers/subscribers. Cada dependencia e passada por parametro; o compilador acusa qualquer falta em compile time.
 6. **`Arc<dyn Trait>`** para toda dependencia injetada; `Arc::clone` e barato (contador de referencia).
 7. **Graceful shutdown** via `with_graceful_shutdown(shutdown_signal())` na API e `shutdown_signal().await` no consumer (SIGINT + SIGTERM).
@@ -2105,7 +2105,7 @@ async fn shutdown_signal() {
 
 | Localizacao | Padrao | Exemplo |
 |---|---|---|
-| `src/bin/` | `<binary>.rs` | `api.rs`, `consumer.rs` |
+| `apps/<app>/` (raiz do crate) | `<binary>.rs` | `api.rs`, `consumer.rs` |
 | `domain/entity/` | `<name>.rs` | `user.rs` |
 | `domain/usecase/<context>/` | `<action>.rs` | `user/create.rs` |
 | `domain/repository/` | `<name>_repository.rs` | `user_repository.rs` |
@@ -2192,10 +2192,10 @@ Cada app tem seu proprio banco (database-per-service). Comunicacao entre apps e 
  └────────┘                          └──────────┘
 ```
 
-### Contratos de Eventos Compartilhados (`pkg/src/event/`)
+### Contratos de Eventos Compartilhados (`pkg/event/`)
 
 ```rust
-// pkg/src/event/envelope.rs
+// pkg/event/envelope.rs
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -2223,7 +2223,7 @@ impl Envelope {
 ```
 
 ```rust
-// pkg/src/event/user.rs
+// pkg/event/user.rs
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -2253,7 +2253,7 @@ Exemplo: adicionando o dominio `Order` no app `billing`.
 
 ### Passo 1 -- Entidade de Dominio
 
-Crie `apps/billing/src/domain/entity/order.rs`:
+Crie `apps/billing/domain/entity/order.rs`:
 
 ```rust
 use chrono::{DateTime, Utc};
@@ -2287,13 +2287,13 @@ impl Order {
 }
 ```
 
-Registre o modulo em `apps/billing/src/domain/entity/mod.rs`.
+Registre o modulo em `apps/billing/domain/entity/mod.rs`.
 
 ### Passo 2 -- Traits de Dominio (Use Cases)
 
 Crie um trait por use case, organizados por contexto:
 
-Crie `apps/billing/src/domain/usecase/order/create.rs`:
+Crie `apps/billing/domain/usecase/order/create.rs`:
 
 ```rust
 use async_trait::async_trait;
@@ -2319,7 +2319,7 @@ pub trait CreateUseCase: Send + Sync {
 
 ### Passo 2b -- Traits de Dominio (Repository e Event)
 
-Crie `apps/billing/src/domain/repository/order_repository.rs`:
+Crie `apps/billing/domain/repository/order_repository.rs`:
 
 ```rust
 use anyhow::Result;
@@ -2336,7 +2336,7 @@ pub trait OrderRepository: Send + Sync {
 }
 ```
 
-Crie `apps/billing/src/domain/event/order_event.rs` (se aplicavel):
+Crie `apps/billing/domain/event/order_event.rs` (se aplicavel):
 
 ```rust
 use anyhow::Result;
@@ -2353,7 +2353,7 @@ pub trait OrderEvent: Send + Sync {
 
 ### Passo 3 -- Use Case de Aplicacao
 
-Crie `apps/billing/src/application/usecase/order/create_usecase.rs`:
+Crie `apps/billing/application/usecase/order/create_usecase.rs`:
 
 ```rust
 use std::sync::Arc;
@@ -2390,19 +2390,19 @@ impl crate::domain::usecase::order::CreateUseCase for CreateUseCase {
 
 ### Passo 4 -- Repositorio de Infraestrutura
 
-Crie `apps/billing/src/infrastructure/repository/order_repository.rs` (struct `PostgresOrderRepository` + row struct + impl do trait).
+Crie `apps/billing/infrastructure/repository/order_repository.rs` (struct `PostgresOrderRepository` + row struct + impl do trait).
 
 ### Passo 5 -- Publisher de Infraestrutura (se aplicavel)
 
-Crie `apps/billing/src/infrastructure/publisher/order_publisher.rs` (struct `NatsOrderPublisher`).
+Crie `apps/billing/infrastructure/publisher/order_publisher.rs` (struct `NatsOrderPublisher`).
 
 ### Passo 6a -- Controller (se a API precisar)
 
-Crie `apps/billing/src/infrastructure/controller/order_controller.rs` e mapeie novos erros em `infrastructure/controller/errors.rs`.
+Crie `apps/billing/infrastructure/controller/order_controller.rs` e mapeie novos erros em `infrastructure/controller/errors.rs`.
 
 ### Passo 6b -- Subscriber (se o Consumer precisar)
 
-Crie `apps/billing/src/infrastructure/subscriber/order_subscriber.rs`.
+Crie `apps/billing/infrastructure/subscriber/order_subscriber.rs`.
 
 ### Passo 7 -- Migration SQL
 
@@ -2415,7 +2415,7 @@ sqlx migrate add -r create_orders --source migrations/billing
 
 ### Passo 8 -- Composition Root
 
-**Para a API** -- atualize `apps/billing/src/bin/api.rs`:
+**Para a API** -- atualize `apps/billing/api.rs`:
 
 ```rust
 // providers novos (bottom-up)
@@ -2436,7 +2436,7 @@ let app = pkg::httpserver::with_default_middlewares(
 
 ### Passo 9 -- Testes
 
-- Unitario: `#[cfg(test)] mod tests` em `apps/billing/src/application/usecase/order/create_usecase.rs` (mockall).
+- Unitario: `#[cfg(test)] mod tests` em `apps/billing/application/usecase/order/create_usecase.rs` (mockall).
 - Integracao: `apps/billing/tests/order_repository_integration_test.rs` (testcontainers).
 
 ### Passo 10 -- OpenAPI (apenas APIs)
@@ -2445,23 +2445,23 @@ Adicione o handler ao `#[derive(OpenApi)]` do app (utoipa) e verifique `/swagger
 
 ### Checklist -- Nova Feature
 
-- [ ] `src/domain/entity/<name>.rs` -- Entidade com construtor
-- [ ] `src/domain/usecase/<context>/<action>.rs` -- 1 trait por use case (metodo `perform`)
-- [ ] `src/domain/repository/<name>_repository.rs` -- Trait de repositorio
-- [ ] `src/domain/event/<name>_event.rs` -- Trait de evento (se aplicavel)
-- [ ] `src/domain/<lib>/<name>.rs` -- Trait para lib externa (se aplicavel)
-- [ ] `src/application/usecase/<context>/<action>_usecase.rs` -- Implementacao do use case
+- [ ] `domain/entity/<name>.rs` -- Entidade com construtor
+- [ ] `domain/usecase/<context>/<action>.rs` -- 1 trait por use case (metodo `perform`)
+- [ ] `domain/repository/<name>_repository.rs` -- Trait de repositorio
+- [ ] `domain/event/<name>_event.rs` -- Trait de evento (se aplicavel)
+- [ ] `domain/<lib>/<name>.rs` -- Trait para lib externa (se aplicavel)
+- [ ] `application/usecase/<context>/<action>_usecase.rs` -- Implementacao do use case
 - [ ] `#[cfg(test)] mod tests` no arquivo do use case -- Teste unitario (mockall)
-- [ ] `src/infrastructure/repository/<name>_repository.rs` -- Implementacao PostgreSQL (sqlx)
+- [ ] `infrastructure/repository/<name>_repository.rs` -- Implementacao PostgreSQL (sqlx)
 - [ ] `tests/<name>_repository_integration_test.rs` -- Teste de integracao (testcontainers)
-- [ ] `src/infrastructure/publisher/<name>_publisher.rs` -- Implementacao NATS (se aplicavel)
-- [ ] `src/infrastructure/adapter/<lib>_adapter.rs` -- Implementacao de lib externa (se aplicavel)
-- [ ] `src/infrastructure/controller/<name>_controller.rs` -- Controller Axum (se API)
-- [ ] `src/infrastructure/controller/errors.rs` -- Mapear novas variantes de erro (se API)
-- [ ] `src/infrastructure/subscriber/<name>_subscriber.rs` -- Subscriber NATS (se Consumer)
+- [ ] `infrastructure/publisher/<name>_publisher.rs` -- Implementacao NATS (se aplicavel)
+- [ ] `infrastructure/adapter/<lib>_adapter.rs` -- Implementacao de lib externa (se aplicavel)
+- [ ] `infrastructure/controller/<name>_controller.rs` -- Controller Axum (se API)
+- [ ] `infrastructure/controller/errors.rs` -- Mapear novas variantes de erro (se API)
+- [ ] `infrastructure/subscriber/<name>_subscriber.rs` -- Subscriber NATS (se Consumer)
 - [ ] `migrations/<app>/<timestamp>_<descricao>.up.sql` -- Migration SQL (sqlx-cli)
-- [ ] `apps/<app>/src/bin/api.rs` -- Registrar providers e rotas no composition root (se API)
-- [ ] `apps/<app>/src/bin/consumer.rs` -- Criar ou atualizar binario do consumer (se Consumer)
+- [ ] `apps/<app>/api.rs` -- Registrar providers e rotas no composition root (se API)
+- [ ] `apps/<app>/consumer.rs` -- Criar ou atualizar binario do consumer (se Consumer)
 - [ ] Registrar `mod`s novos nos `mod.rs` de cada camada
 - [ ] Atualizar o `#[derive(OpenApi)]` do app (se API)
 
@@ -2469,8 +2469,8 @@ Adicione o handler ao `#[derive(OpenApi)]` do app (utoipa) e verifique `/swagger
 
 - [ ] Criar `apps/<app-name>/Cargo.toml` (deps via `{ workspace = true }`, `[[bin]]` api/consumer)
 - [ ] Adicionar ao `members` do `Cargo.toml` da raiz
-- [ ] Criar `apps/<app-name>/src/lib.rs` com `pub mod domain; application; infrastructure;`
-- [ ] Criar `apps/<app-name>/src/bin/api.rs` e/ou `src/bin/consumer.rs`
+- [ ] Criar `apps/<app-name>/lib.rs` com `pub mod domain; application; infrastructure;`
+- [ ] Criar `apps/<app-name>/api.rs` e/ou `consumer.rs`
 - [ ] Carregar `AppConfig` + `pkg::postgres::new_pool` + `pkg::nats::connect` no composition root
 - [ ] Compor apenas repositorios, publishers, use cases e handlers necessarios
 - [ ] Definir startup (`routes`+`axum::serve` para API, `ensure_stream`+loop do subscriber para Consumer)
