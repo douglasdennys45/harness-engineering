@@ -10,9 +10,9 @@ O projeto segue **Clean Architecture** com inversao de dependencia em uma estrut
 apps/<app-name>/cmd/<binary>/main.go    Entry points (um por binario)
        |
        v
-apps/<app-name>/internal/domain/        Entidades, interfaces (sem dependencias externas)
-apps/<app-name>/internal/application/   Implementacoes de use cases (depende apenas de domain)
-apps/<app-name>/internal/infrastructure/ Controllers, repos, publisher, subscriber, config
+apps/<app-name>/domain/                 Entidades, interfaces (sem dependencias externas)
+apps/<app-name>/application/            Implementacoes de use cases (depende apenas de domain)
+apps/<app-name>/infrastructure/         Controllers, repos, publisher, subscriber, config
        |
        v
 pkg/                                    Bibliotecas reutilizaveis compartilhadas entre apps
@@ -52,7 +52,7 @@ Domain  <--  Application  <--  Infrastructure  <--  cmd/
 - `domain/` importa apenas stdlib.
 - `application/` importa apenas `domain/`.
 - `infrastructure/` importa `domain/`, `pkg/` e bibliotecas externas.
-- `pkg/` nunca importa `internal/` de nenhum app.
+- `pkg/` nunca importa pacotes de nenhum app.
 - `cmd/<binary>/` importa tudo para compor o grafo de dependencias FX **daquele binario especifico**.
 
 ---
@@ -109,44 +109,43 @@ Domain  <--  Application  <--  Infrastructure  <--  cmd/
 │   │   │   │   └── main.go                          # API HTTP — composicao FX
 │   │   │   └── consumer/
 │   │   │       └── main.go                          # Consumer NATS — composicao FX
-│   │   ├── internal/
-│   │   │   ├── domain/
-│   │   │   │   ├── entity/
-│   │   │   │   │   └── user.go                      # Struct de dominio + construtor
-│   │   │   │   ├── usecase/
-│   │   │   │   │   └── user/                        # Subpasta por contexto de dominio
-│   │   │   │   │       ├── create.go                # CreateUseCase interface
-│   │   │   │   │       ├── get-by-id.go             # GetByIDUseCase interface
-│   │   │   │   │       └── list.go                  # ListUseCase interface
-│   │   │   │   ├── repository/
-│   │   │   │   │   └── user-repository.go           # Interface de repositorio
-│   │   │   │   ├── event/
-│   │   │   │   │   └── user-event.go                # Interface de eventos/mensageria
-│   │   │   │   └── <lib>/                           # Interfaces para libs externas
-│   │   │   │       └── <name>.go                    # Interface de inversao de dependencia
-│   │   │   ├── application/
-│   │   │   │   └── usecase/
-│   │   │   │       └── user/                        # Subpasta por contexto de dominio
-│   │   │   │           ├── create-usecase.go        # Implementacao do use case
-│   │   │   │           ├── create-usecase_test.go   # Teste unitario
-│   │   │   │           ├── get-by-id-usecase.go
-│   │   │   │           └── list-usecase.go
-│   │   │   └── infrastructure/
-│   │   │       ├── config/
-│   │   │       │   ├── config.go                    # AppConfig + LoadConfig
-│   │   │       │   └── module.go                    # fx.Module compartilhado (providers de infra)
-│   │   │       ├── controller/
-│   │   │       │   └── user-controller.go           # Controllers HTTP (Fiber v3) — apenas APIs
-│   │   │       ├── repository/
-│   │   │       │   ├── user-repository.go           # Implementacao PostgreSQL
-│   │   │       │   └── user-repository_integration_test.go
-│   │   │       ├── publisher/
-│   │   │       │   ├── user-publisher.go            # Implementacao NATS JetStream
-│   │   │       │   └── user-publisher_integration_test.go
-│   │   │       ├── subscriber/
-│   │   │       │   └── user-subscriber.go           # Consumer NATS — apenas Consumers
-│   │   │       └── adapter/
-│   │   │           └── <lib>-adapter.go             # Implementacoes de interfaces de libs externas
+│   │   ├── domain/
+│   │   │   ├── entity/
+│   │   │   │   └── user.go                          # Struct de dominio + construtor
+│   │   │   ├── usecase/
+│   │   │   │   └── user/                            # Subpasta por contexto de dominio
+│   │   │   │       ├── create.go                    # CreateUseCase interface
+│   │   │   │       ├── get-by-id.go                 # GetByIDUseCase interface
+│   │   │   │       └── list.go                      # ListUseCase interface
+│   │   │   ├── repository/
+│   │   │   │   └── user-repository.go               # Interface de repositorio
+│   │   │   ├── event/
+│   │   │   │   └── user-event.go                    # Interface de eventos/mensageria
+│   │   │   └── <lib>/                               # Interfaces para libs externas
+│   │   │       └── <name>.go                        # Interface de inversao de dependencia
+│   │   ├── application/
+│   │   │   └── usecase/
+│   │   │       └── user/                            # Subpasta por contexto de dominio
+│   │   │           ├── create-usecase.go            # Implementacao do use case
+│   │   │           ├── create-usecase_test.go       # Teste unitario
+│   │   │           ├── get-by-id-usecase.go
+│   │   │           └── list-usecase.go
+│   │   ├── infrastructure/
+│   │   │   ├── config/
+│   │   │   │   ├── config.go                        # AppConfig + LoadConfig
+│   │   │   │   └── module.go                        # fx.Module compartilhado (providers de infra)
+│   │   │   ├── controller/
+│   │   │   │   └── user-controller.go               # Controllers HTTP (Fiber v3) — apenas APIs
+│   │   │   ├── repository/
+│   │   │   │   ├── user-repository.go               # Implementacao PostgreSQL
+│   │   │   │   └── user-repository_integration_test.go
+│   │   │   ├── publisher/
+│   │   │   │   ├── user-publisher.go                # Implementacao NATS JetStream
+│   │   │   │   └── user-publisher_integration_test.go
+│   │   │   ├── subscriber/
+│   │   │   │   └── user-subscriber.go               # Consumer NATS — apenas Consumers
+│   │   │   └── adapter/
+│   │   │       └── <lib>-adapter.go                 # Implementacoes de interfaces de libs externas
 │   │   └── test/
 │   │       └── integration/
 │   │           ├── testhelper/
@@ -162,10 +161,9 @@ Domain  <--  Application  <--  Infrastructure  <--  cmd/
 │       │   │   └── main.go
 │       │   └── consumer/
 │       │       └── main.go
-│       ├── internal/
-│       │   ├── domain/
-│       │   ├── application/
-│       │   └── infrastructure/
+│       ├── domain/
+│       ├── application/
+│       ├── infrastructure/
 │       └── test/
 │           └── integration/
 ```
@@ -202,7 +200,7 @@ require github.com/org/project/pkg v0.0.0
 
 ---
 
-## Camada de Dominio (`internal/domain/`)
+## Camada de Dominio (`domain/`)
 
 A camada de dominio contem **entidades** e **contratos** (interfaces). Nao possui dependencias externas, apenas a stdlib do Go. **Isolada dentro de cada app.**
 
@@ -213,7 +211,7 @@ Structs representando conceitos de dominio. Cada entidade possui um construtor `
 **Padrao:**
 
 ```go
-// apps/user/internal/domain/entity/user.go
+// apps/user/domain/entity/user.go
 package entity
 
 import "time"
@@ -253,7 +251,7 @@ Interfaces definindo os use cases de dominio. Cada use case e representado por *
 **Estrutura de diretorios:**
 
 ```
-internal/domain/usecase/
+domain/usecase/
 └── user/
     ├── create.go             # CreateUseCase interface
     ├── get-by-id.go          # GetByIDUseCase interface
@@ -263,13 +261,13 @@ internal/domain/usecase/
 **Padrao:**
 
 ```go
-// apps/user/internal/domain/usecase/user/create.go
+// apps/user/domain/usecase/user/create.go
 package user
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 type CreateInput struct {
@@ -287,13 +285,13 @@ type CreateUseCase interface {
 ```
 
 ```go
-// apps/user/internal/domain/usecase/user/get-by-id.go
+// apps/user/domain/usecase/user/get-by-id.go
 package user
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 type GetByIDInput struct {
@@ -306,13 +304,13 @@ type GetByIDUseCase interface {
 ```
 
 ```go
-// apps/user/internal/domain/usecase/user/list.go
+// apps/user/domain/usecase/user/list.go
 package user
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 type ListInput struct {
@@ -346,13 +344,13 @@ Interfaces definindo contratos de persistencia.
 **Padrao:**
 
 ```go
-// apps/user/internal/domain/repository/user-repository.go
+// apps/user/domain/repository/user-repository.go
 package repository
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 type UserRepository interface {
@@ -378,13 +376,13 @@ Interfaces definindo contratos de mensageria/eventos.
 **Padrao:**
 
 ```go
-// apps/user/internal/domain/event/user-event.go
+// apps/user/domain/event/user-event.go
 package event
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 type UserEvent interface {
@@ -407,7 +405,7 @@ Toda biblioteca externa utilizada no projeto **deve ser acessada via inversao de
 **Estrutura de diretorios:**
 
 ```
-internal/domain/
+domain/
 ├── crypt/
 │   └── hasher.go              # Interface para hashing de senhas
 ├── token/
@@ -419,7 +417,7 @@ internal/domain/
 **Padrao:**
 
 ```go
-// apps/user/internal/domain/crypt/hasher.go
+// apps/user/domain/crypt/hasher.go
 package crypt
 
 type Hasher interface {
@@ -436,7 +434,7 @@ type Hasher interface {
 
 ---
 
-## Camada de Aplicacao (`internal/application/`)
+## Camada de Aplicacao (`application/`)
 
 Contem a **implementacao** dos use cases. Orquestra entidades, repositorios e eventos. **Isolada dentro de cada app.**
 
@@ -447,7 +445,7 @@ Implementacoes dos use cases, organizadas em **subpastas por contexto de dominio
 **Estrutura de diretorios:**
 
 ```
-internal/application/usecase/
+application/usecase/
 └── user/
     ├── create-usecase.go           # CreateUseCase struct + Perform
     ├── create-usecase_test.go      # Teste unitario com gomock
@@ -458,17 +456,17 @@ internal/application/usecase/
 **Padrao:**
 
 ```go
-// apps/user/internal/application/usecase/user/create-usecase.go
+// apps/user/application/usecase/user/create-usecase.go
 package user
 
 import (
     "context"
     "errors"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
-    "github.com/org/project/apps/user/internal/domain/event"
-    "github.com/org/project/apps/user/internal/domain/repository"
-    userusecase "github.com/org/project/apps/user/internal/domain/usecase/user"
+    "github.com/org/project/apps/user/domain/entity"
+    "github.com/org/project/apps/user/domain/event"
+    "github.com/org/project/apps/user/domain/repository"
+    userusecase "github.com/org/project/apps/user/domain/usecase/user"
 )
 
 type CreateUseCase struct {
@@ -515,13 +513,13 @@ func (u *CreateUseCase) Perform(ctx context.Context, input userusecase.CreateInp
 - Construtor: `New<Action>UseCase(deps...) <context>usecase.<Action>UseCase` -- retorna a **interface de dominio**.
 - Campos da struct sao **interfaces de dominio** (nunca tipos concretos).
 - O metodo implementado e sempre `Perform`.
-- Depende apenas de `internal/domain/`. Nunca importa `infrastructure/` ou `pkg/`.
+- Depende apenas de `domain/`. Nunca importa `infrastructure/` ou `pkg/`.
 - Erros wrapeados com contexto: `fmt.Errorf("action: %w", err)`.
 - Evento publicado **apos** persistencia no banco, nunca antes.
 
 ---
 
-## Camada de Infraestrutura (`internal/infrastructure/`)
+## Camada de Infraestrutura (`infrastructure/`)
 
 Implementa contratos de dominio usando tecnologias concretas e gerencia a configuracao da aplicacao. Cada binario conecta apenas o que precisa.
 
@@ -554,7 +552,7 @@ pkg/
 **Estrutura de cada app (so o codigo especifico):**
 
 ```
-apps/user/internal/infrastructure/controller/
+apps/user/infrastructure/controller/
 ├── errors.go                   # Registro dos erros de dominio DESTE app
 ├── user-controller.go          # UserController (embute pkg BaseController)
 └── order-controller.go         # OrderController (embute pkg BaseController)
@@ -925,7 +923,7 @@ func (m *ErrorMapper) Map(err error) (int, string) {
 **Erros de dominio base (cada app define os seus):**
 
 ```go
-// apps/user/internal/domain/entity/errors.go
+// apps/user/domain/entity/errors.go
 package entity
 
 import "errors"
@@ -952,7 +950,7 @@ import (
     "github.com/gofiber/fiber/v3"
 
     pkgctrl "github.com/org/project/pkg/controller"
-    "github.com/org/project/apps/user/internal/domain/entity"
+    "github.com/org/project/apps/user/domain/entity"
 )
 
 // ProvideErrorMapper configura o mapeamento de erros DESTE app.
@@ -986,7 +984,7 @@ func main() {
 #### Controller Concreto — Exemplo Simples (sem transaction)
 
 ```go
-// apps/user/internal/infrastructure/controller/user-controller.go
+// apps/user/infrastructure/controller/user-controller.go
 package controller
 
 import (
@@ -995,8 +993,8 @@ import (
     "github.com/gofiber/fiber/v3"
 
     pkgctrl "github.com/org/project/pkg/controller"
-    "github.com/org/project/apps/user/internal/domain/entity"
-    userusecase "github.com/org/project/apps/user/internal/domain/usecase/user"
+    "github.com/org/project/apps/user/domain/entity"
+    userusecase "github.com/org/project/apps/user/domain/usecase/user"
 )
 
 type UserController struct {
@@ -1099,7 +1097,7 @@ type ListUsersFilter struct {
 Quando um endpoint precisa executar **multiplas operacoes atomicas** (ex: criar order + items + atualizar estoque), o controller orquestra a transaction via `Transactor`:
 
 ```go
-// apps/billing/internal/infrastructure/controller/order-controller.go
+// apps/billing/infrastructure/controller/order-controller.go
 package controller
 
 import (
@@ -1109,9 +1107,9 @@ import (
     "github.com/gofiber/fiber/v3"
 
     pkgctrl "github.com/org/project/pkg/controller"
-    "github.com/org/project/apps/billing/internal/domain/entity"
-    "github.com/org/project/apps/billing/internal/domain/event"
-    "github.com/org/project/apps/billing/internal/domain/repository"
+    "github.com/org/project/apps/billing/domain/entity"
+    "github.com/org/project/apps/billing/domain/event"
+    "github.com/org/project/apps/billing/domain/repository"
 )
 
 type OrderController struct {
@@ -1242,7 +1240,7 @@ type CreateItemInput struct {
 #### Transactor — Interface de Dominio
 
 ```go
-// apps/billing/internal/domain/repository/transactor.go
+// apps/billing/domain/repository/transactor.go
 package repository
 
 import (
@@ -1256,7 +1254,7 @@ type Transactor interface {
 ```
 
 ```go
-// apps/billing/internal/infrastructure/repository/transactor.go
+// apps/billing/infrastructure/repository/transactor.go
 package repository
 
 import (
@@ -1264,7 +1262,7 @@ import (
     "database/sql"
 
     "github.com/org/project/pkg/postgres"
-    domainrepo "github.com/org/project/apps/billing/internal/domain/repository"
+    domainrepo "github.com/org/project/apps/billing/domain/repository"
 )
 
 type PostgresTransactor struct {
@@ -1285,14 +1283,14 @@ func (t *PostgresTransactor) RunInTx(ctx context.Context, fn func(tx *sql.Tx) er
 Quando um repositorio participa de uma transaction externa, expoe metodos que recebem `*sql.Tx`:
 
 ```go
-// apps/billing/internal/domain/repository/order-repository.go
+// apps/billing/domain/repository/order-repository.go
 package repository
 
 import (
     "context"
     "database/sql"
 
-    "github.com/org/project/apps/billing/internal/domain/entity"
+    "github.com/org/project/apps/billing/domain/entity"
 )
 
 type OrderRepository interface {
@@ -1307,7 +1305,7 @@ type OrderRepository interface {
 ```
 
 ```go
-// apps/billing/internal/infrastructure/repository/order-repository.go
+// apps/billing/infrastructure/repository/order-repository.go
 package repository
 
 func (r *OrderRepository) CreateWithTx(ctx context.Context, tx *sql.Tx, order *entity.Order) (*entity.Order, error) {
@@ -1360,7 +1358,7 @@ func (r *OrderRepository) FindByID(ctx context.Context, id string) (*entity.Orde
 #### Regras do Controller
 
 - `BaseController`, `RequestContext`, `BindAndHandle`, `ErrorMapper` e `ErrorResponse` vivem em **`pkg/controller/`**. Nenhum app reimplementa essa logica.
-- Arquivo: `<name>-controller.go` (ex: `user-controller.go`) em `internal/infrastructure/controller/`.
+- Arquivo: `<name>-controller.go` (ex: `user-controller.go`) em `infrastructure/controller/`.
 - Struct: `<Name>Controller` que embute `pkgctrl.BaseController`.
 - Construtor: `New<Name>Controller(base pkgctrl.BaseController, deps...) *<Name>Controller` -- recebe o `BaseController` via FX.
 - Dependencias sao **interfaces de dominio de use case**, **repositorios** (quando precisa de tx) e **Transactor**.
@@ -1383,7 +1381,7 @@ Handlers de consumo NATS JetStream. Cada subscriber consome de um subject especi
 **Padrao:**
 
 ```go
-// apps/billing/internal/infrastructure/subscriber/user-subscriber.go
+// apps/billing/infrastructure/subscriber/user-subscriber.go
 package subscriber
 
 import (
@@ -1395,7 +1393,7 @@ import (
     "github.com/nats-io/nats.go/jetstream"
 
     pkgevent "github.com/org/project/pkg/event"
-    billingusecase "github.com/org/project/apps/billing/internal/domain/usecase/billing"
+    billingusecase "github.com/org/project/apps/billing/domain/usecase/billing"
 )
 
 type UserSubscriber struct {
@@ -1468,7 +1466,7 @@ Implementacoes de repositorio usando PostgreSQL. Queries SQL escritas manualment
 **Padrao:**
 
 ```go
-// apps/user/internal/infrastructure/repository/user-repository.go
+// apps/user/infrastructure/repository/user-repository.go
 package repository
 
 import (
@@ -1477,8 +1475,8 @@ import (
     "fmt"
     "time"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
-    "github.com/org/project/apps/user/internal/domain/repository"
+    "github.com/org/project/apps/user/domain/entity"
+    "github.com/org/project/apps/user/domain/repository"
 )
 
 type UserRepository struct {
@@ -1608,14 +1606,14 @@ Implementacoes de eventos usando NATS JetStream.
 **Padrao:**
 
 ```go
-// apps/user/internal/infrastructure/publisher/user-publisher.go
+// apps/user/infrastructure/publisher/user-publisher.go
 package publisher
 
 import (
     "context"
 
-    "github.com/org/project/apps/user/internal/domain/entity"
-    "github.com/org/project/apps/user/internal/domain/event"
+    "github.com/org/project/apps/user/domain/entity"
+    "github.com/org/project/apps/user/domain/event"
     pkgevent "github.com/org/project/pkg/event"
     pkgnats "github.com/org/project/pkg/nats"
 )
@@ -1651,11 +1649,11 @@ Implementacoes concretas das interfaces de bibliotecas externas definidas em `do
 **Padrao:**
 
 ```go
-// apps/user/internal/infrastructure/adapter/bcrypt-adapter.go
+// apps/user/infrastructure/adapter/bcrypt-adapter.go
 package adapter
 
 import (
-    "github.com/org/project/apps/user/internal/domain/crypt"
+    "github.com/org/project/apps/user/domain/crypt"
     "golang.org/x/crypto/bcrypt"
 )
 
@@ -1690,7 +1688,7 @@ Configuracao da aplicacao e modulo FX compartilhado de infraestrutura.
 **`config.go`** -- Struct de configuracao e carregamento de variaveis de ambiente:
 
 ```go
-// apps/user/internal/infrastructure/config/config.go
+// apps/user/infrastructure/config/config.go
 package config
 
 import "os"
@@ -1740,7 +1738,7 @@ func env(key, fallback string) string {
 **`module.go`** -- Modulo FX compartilhado com providers de infraestrutura:
 
 ```go
-// apps/user/internal/infrastructure/config/module.go
+// apps/user/infrastructure/config/module.go
 package config
 
 import (
@@ -1825,7 +1823,7 @@ func ProvideNATSPublisher(nc *pkgnats.Conn, cfg *AppConfig) *pkgnats.Publisher {
 
 ## Camada de Pacotes (`pkg/`)
 
-Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `internal/` de nenhum app.
+Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam pacotes de nenhum app.
 
 | Pacote | Responsabilidade |
 |---|---|
@@ -1839,7 +1837,7 @@ Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `in
 **Regras:**
 - Sem estado global (sem `var` em nivel de pacote para conexoes).
 - Funcoes puras que recebem e retornam dependencias explicitamente.
-- Nunca importa nada de `internal/` de nenhum app.
+- Nunca importa nada de nenhum app.
 - Pode ser usada por outros projetos.
 
 ---
@@ -1871,12 +1869,12 @@ import (
     "github.com/org/project/pkg/logger"
     pkghttp "github.com/org/project/pkg/httpserver"
 
-    "github.com/org/project/apps/user/internal/infrastructure/config"
-    "github.com/org/project/apps/user/internal/infrastructure/controller"
-    infrarepo "github.com/org/project/apps/user/internal/infrastructure/repository"
-    "github.com/org/project/apps/user/internal/infrastructure/publisher"
-    "github.com/org/project/apps/user/internal/infrastructure/adapter"
-    appuser "github.com/org/project/apps/user/internal/application/usecase/user"
+    "github.com/org/project/apps/user/infrastructure/config"
+    "github.com/org/project/apps/user/infrastructure/controller"
+    infrarepo "github.com/org/project/apps/user/infrastructure/repository"
+    "github.com/org/project/apps/user/infrastructure/publisher"
+    "github.com/org/project/apps/user/infrastructure/adapter"
+    appuser "github.com/org/project/apps/user/application/usecase/user"
 )
 
 func main() {
@@ -1967,10 +1965,10 @@ import (
     pkgnats "github.com/org/project/pkg/nats"
     "github.com/org/project/pkg/logger"
 
-    "github.com/org/project/apps/billing/internal/infrastructure/config"
-    infrarepo "github.com/org/project/apps/billing/internal/infrastructure/repository"
-    "github.com/org/project/apps/billing/internal/infrastructure/subscriber"
-    appbilling "github.com/org/project/apps/billing/internal/application/usecase/billing"
+    "github.com/org/project/apps/billing/infrastructure/config"
+    infrarepo "github.com/org/project/apps/billing/infrastructure/repository"
+    "github.com/org/project/apps/billing/infrastructure/subscriber"
+    appbilling "github.com/org/project/apps/billing/application/usecase/billing"
 )
 
 func main() {
@@ -2129,7 +2127,7 @@ import (
     "go.uber.org/fx"
 
     // 3. projeto interno
-    "github.com/org/project/apps/user/internal/domain/usecase/user"
+    "github.com/org/project/apps/user/domain/usecase/user"
     "github.com/org/project/pkg/postgres"
 )
 ```
@@ -2200,7 +2198,7 @@ Exemplo: adicionando o dominio `Order` no app `billing`.
 
 ### Passo 1 -- Entidade de Dominio
 
-Crie `apps/billing/internal/domain/entity/order.go`:
+Crie `apps/billing/domain/entity/order.go`:
 
 ```go
 package entity
@@ -2232,7 +2230,7 @@ func NewOrder(userID string, amount int64) *Order {
 
 Crie uma interface por use case, organizadas por contexto:
 
-Crie `apps/billing/internal/domain/usecase/order/create.go`:
+Crie `apps/billing/domain/usecase/order/create.go`:
 
 ```go
 package order
@@ -2240,7 +2238,7 @@ package order
 import (
     "context"
 
-    "github.com/org/project/apps/billing/internal/domain/entity"
+    "github.com/org/project/apps/billing/domain/entity"
 )
 
 type CreateInput struct {
@@ -2259,7 +2257,7 @@ type CreateUseCase interface {
 
 ### Passo 2b -- Interfaces de Dominio (Repository e Event)
 
-Crie `apps/billing/internal/domain/repository/order-repository.go`:
+Crie `apps/billing/domain/repository/order-repository.go`:
 
 ```go
 package repository
@@ -2267,7 +2265,7 @@ package repository
 import (
     "context"
 
-    "github.com/org/project/apps/billing/internal/domain/entity"
+    "github.com/org/project/apps/billing/domain/entity"
 )
 
 type OrderRepository interface {
@@ -2276,7 +2274,7 @@ type OrderRepository interface {
 }
 ```
 
-Crie `apps/billing/internal/domain/event/order-event.go` (se aplicavel):
+Crie `apps/billing/domain/event/order-event.go` (se aplicavel):
 
 ```go
 package event
@@ -2284,7 +2282,7 @@ package event
 import (
     "context"
 
-    "github.com/org/project/apps/billing/internal/domain/entity"
+    "github.com/org/project/apps/billing/domain/entity"
 )
 
 type OrderEvent interface {
@@ -2294,7 +2292,7 @@ type OrderEvent interface {
 
 ### Passo 3 -- Use Case de Aplicacao
 
-Crie `apps/billing/internal/application/usecase/order/create-usecase.go`:
+Crie `apps/billing/application/usecase/order/create-usecase.go`:
 
 ```go
 package order
@@ -2303,9 +2301,9 @@ import (
     "context"
     "fmt"
 
-    "github.com/org/project/apps/billing/internal/domain/entity"
-    "github.com/org/project/apps/billing/internal/domain/repository"
-    orderusecase "github.com/org/project/apps/billing/internal/domain/usecase/order"
+    "github.com/org/project/apps/billing/domain/entity"
+    "github.com/org/project/apps/billing/domain/repository"
+    orderusecase "github.com/org/project/apps/billing/domain/usecase/order"
 )
 
 type CreateUseCase struct {
@@ -2327,19 +2325,19 @@ func (u *CreateUseCase) Perform(ctx context.Context, input orderusecase.CreateIn
 
 ### Passo 4 -- Repositorio de Infraestrutura
 
-Crie `apps/billing/internal/infrastructure/repository/order-repository.go`.
+Crie `apps/billing/infrastructure/repository/order-repository.go`.
 
 ### Passo 5 -- Publisher de Infraestrutura (se aplicavel)
 
-Crie `apps/billing/internal/infrastructure/publisher/order-publisher.go`.
+Crie `apps/billing/infrastructure/publisher/order-publisher.go`.
 
 ### Passo 6a -- Controller (se a API precisar)
 
-Crie `apps/billing/internal/infrastructure/controller/order-controller.go`.
+Crie `apps/billing/infrastructure/controller/order-controller.go`.
 
 ### Passo 6b -- Subscriber (se o Consumer precisar)
 
-Crie `apps/billing/internal/infrastructure/subscriber/order-subscriber.go`.
+Crie `apps/billing/infrastructure/subscriber/order-subscriber.go`.
 
 ### Passo 7 -- Migration SQL
 
@@ -2369,8 +2367,8 @@ func RegisterRoutes(app *fiber.App, orderCtrl *controller.OrderController) {
 
 ### Passo 9 -- Testes
 
-- Unitario: `apps/billing/internal/application/usecase/order/create-usecase_test.go`
-- Integracao: `apps/billing/internal/infrastructure/repository/order-repository_integration_test.go`
+- Unitario: `apps/billing/application/usecase/order/create-usecase_test.go`
+- Integracao: `apps/billing/infrastructure/repository/order-repository_integration_test.go`
 
 ### Passo 10 -- Swagger (apenas APIs)
 
@@ -2378,19 +2376,19 @@ Execute `swag init -g apps/billing/cmd/api/main.go` para regenerar a documentaca
 
 ### Checklist -- Nova Feature
 
-- [ ] `internal/domain/entity/<name>.go` -- Entidade com construtor
-- [ ] `internal/domain/usecase/<context>/<action>.go` -- 1 interface por use case (metodo `Perform`)
-- [ ] `internal/domain/repository/<name>-repository.go` -- Interface de repositorio
-- [ ] `internal/domain/event/<name>-event.go` -- Interface de evento (se aplicavel)
-- [ ] `internal/domain/<lib>/<name>.go` -- Interface para lib externa (se aplicavel)
-- [ ] `internal/application/usecase/<context>/<action>-usecase.go` -- Implementacao do use case
-- [ ] `internal/application/usecase/<context>/<action>-usecase_test.go` -- Teste unitario
-- [ ] `internal/infrastructure/repository/<name>-repository.go` -- Implementacao PostgreSQL
-- [ ] `internal/infrastructure/repository/<name>-repository_integration_test.go` -- Teste de integracao
-- [ ] `internal/infrastructure/publisher/<name>-publisher.go` -- Implementacao NATS (se aplicavel)
-- [ ] `internal/infrastructure/adapter/<lib>-adapter.go` -- Implementacao de lib externa (se aplicavel)
-- [ ] `internal/infrastructure/controller/<name>-controller.go` -- Controller Fiber v3 (se API)
-- [ ] `internal/infrastructure/subscriber/<name>-subscriber.go` -- Subscriber NATS (se Consumer)
+- [ ] `domain/entity/<name>.go` -- Entidade com construtor
+- [ ] `domain/usecase/<context>/<action>.go` -- 1 interface por use case (metodo `Perform`)
+- [ ] `domain/repository/<name>-repository.go` -- Interface de repositorio
+- [ ] `domain/event/<name>-event.go` -- Interface de evento (se aplicavel)
+- [ ] `domain/<lib>/<name>.go` -- Interface para lib externa (se aplicavel)
+- [ ] `application/usecase/<context>/<action>-usecase.go` -- Implementacao do use case
+- [ ] `application/usecase/<context>/<action>-usecase_test.go` -- Teste unitario
+- [ ] `infrastructure/repository/<name>-repository.go` -- Implementacao PostgreSQL
+- [ ] `infrastructure/repository/<name>-repository_integration_test.go` -- Teste de integracao
+- [ ] `infrastructure/publisher/<name>-publisher.go` -- Implementacao NATS (se aplicavel)
+- [ ] `infrastructure/adapter/<lib>-adapter.go` -- Implementacao de lib externa (se aplicavel)
+- [ ] `infrastructure/controller/<name>-controller.go` -- Controller Fiber v3 (se API)
+- [ ] `infrastructure/subscriber/<name>-subscriber.go` -- Subscriber NATS (se Consumer)
 - [ ] `migrations/<app>/NNNNNN_<descricao>.up.sql` -- Migration SQL
 - [ ] `apps/<app>/cmd/api/main.go` -- Registrar providers e atualizar `RegisterRoutes` (se API)
 - [ ] `apps/<app>/cmd/consumer/main.go` -- Criar ou atualizar binario do consumer (se Consumer)

@@ -7,12 +7,12 @@ Este documento define a arquitetura do projeto, suas camadas, regras de dependen
 O projeto segue **Clean Architecture** com inversao de dependencia em uma estrutura de **monorepo** com multiplos microservicos. Camadas internas nunca importam camadas externas. Injecao de dependencia e gerenciada pelo **awilix** (modo CLASSIC, injecao por constructor). O monorepo suporta **N apps independentes** (APIs e Consumers) que compartilham bibliotecas via `pkg/` (workspace `@org/pkg`).
 
 ```
-apps/<app-name>/src/bin/<binary>.ts     Entry points (um por binario)
+apps/<app-name>/bin/<binary>.ts         Entry points (um por binario)
        |
        v
-apps/<app-name>/src/domain/             Entidades, interfaces (sem dependencias externas)
-apps/<app-name>/src/application/        Implementacoes de use cases (depende apenas de domain)
-apps/<app-name>/src/infrastructure/     Controllers, repos, publisher, subscriber, config
+apps/<app-name>/domain/                 Entidades, interfaces (sem dependencias externas)
+apps/<app-name>/application/            Implementacoes de use cases (depende apenas de domain)
+apps/<app-name>/infrastructure/         Controllers, repos, publisher, subscriber, config
        |
        v
 pkg/                                    Bibliotecas reutilizaveis compartilhadas entre apps
@@ -41,15 +41,15 @@ pkg/                                    Bibliotecas reutilizaveis compartilhadas
 
 | Tipo | Proposito | Exemplo |
 |---|---|---|
-| **API** | Servidor HTTP expondo endpoints REST (Hyper-Express) | `apps/user/src/bin/api.ts` |
-| **Consumer** | Processo em background consumindo eventos NATS JetStream | `apps/user/src/bin/consumer.ts` |
+| **API** | Servidor HTTP expondo endpoints REST (Hyper-Express) | `apps/user/bin/api.ts` |
+| **Consumer** | Processo em background consumindo eventos NATS JetStream | `apps/user/bin/consumer.ts` |
 
-Em desenvolvimento os binarios rodam com **tsx** (`tsx watch src/bin/api.ts`). Em producao, compilados com **tsc** para `dist/` e executados com `node dist/bin/api.js`.
+Em desenvolvimento os binarios rodam com **tsx** (`tsx watch bin/api.ts`). Em producao, compilados com **tsc** para `dist/` e executados com `node dist/bin/api.js`.
 
 ### Regra de Dependencia
 
 ```
-Domain  <--  Application  <--  Infrastructure  <--  src/bin/
+Domain  <--  Application  <--  Infrastructure  <--  bin/
   ^                                  |
   |                                  v
   +--- nunca depende de -------->  pkg/
@@ -58,8 +58,8 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 - `domain/` nao importa nenhuma biblioteca externa (excecao documentada: `import type` de tipos do `pg` no `Transactor` — ver secao de transactions).
 - `application/` importa apenas `domain/`.
 - `infrastructure/` importa `domain/`, `@org/pkg` e bibliotecas externas.
-- `pkg/` nunca importa `src/` de nenhum app.
-- `src/bin/<binary>.ts` importa tudo para compor o container awilix **daquele binario especifico** (composition root).
+- `pkg/` nunca importa codigo de nenhum app.
+- `bin/<binary>.ts` importa tudo para compor o container awilix **daquele binario especifico** (composition root).
 
 ---
 
@@ -77,30 +77,29 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 ├── pkg/                                             # workspace: @org/pkg
 │   ├── package.json
 │   ├── tsconfig.json
-│   └── src/
-│       ├── postgres/
-│       │   ├── conn.ts                              # createPool + pool config
-│       │   ├── tx.ts                                # runInTx helper
-│       │   └── health.ts                            # ping health check
-│       ├── nats/
-│       │   ├── conn.ts                              # connectNats + reconnect
-│       │   ├── stream.ts                            # ensureStream
-│       │   ├── publisher.ts                         # Publisher generico
-│       │   └── subscriber.ts                        # subscribe com consumer duravel
-│       ├── http-server/
-│       │   └── server.ts                            # createServer com middlewares padrao
-│       ├── controller/
-│       │   ├── base-controller.ts                   # BaseController (template method)
-│       │   ├── request-context.ts                   # RequestContext interface
-│       │   ├── validation.ts                        # formatZodError (zod)
-│       │   ├── errors.ts                            # HttpError, ValidationError
-│       │   └── error-mapper.ts                      # ErrorMapper + ErrorResponse
-│       ├── logger/
-│       │   └── logger.ts                            # pino JSON setup com service e version
-│       └── event/                                   # contratos de eventos compartilhados
-│           ├── event.ts                             # Envelope base
-│           ├── user.ts                              # subjects + data types
-│           └── billing.ts                           # subjects + data types
+│   ├── postgres/
+│   │   ├── conn.ts                                  # createPool + pool config
+│   │   ├── tx.ts                                    # runInTx helper
+│   │   └── health.ts                                # ping health check
+│   ├── nats/
+│   │   ├── conn.ts                                  # connectNats + reconnect
+│   │   ├── stream.ts                                # ensureStream
+│   │   ├── publisher.ts                             # Publisher generico
+│   │   └── subscriber.ts                            # subscribe com consumer duravel
+│   ├── http-server/
+│   │   └── server.ts                                # createServer com middlewares padrao
+│   ├── controller/
+│   │   ├── base-controller.ts                       # BaseController (template method)
+│   │   ├── request-context.ts                       # RequestContext interface
+│   │   ├── validation.ts                            # formatZodError (zod)
+│   │   ├── errors.ts                                # HttpError, ValidationError
+│   │   └── error-mapper.ts                          # ErrorMapper + ErrorResponse
+│   ├── logger/
+│   │   └── logger.ts                                # pino JSON setup com service e version
+│   └── event/                                       # contratos de eventos compartilhados
+│       ├── event.ts                                 # Envelope base
+│       ├── user.ts                                  # subjects + data types
+│       └── billing.ts                               # subjects + data types
 │
 ├── migrations/                                      # migrations SQL por app (dbmate)
 │   ├── user/
@@ -113,48 +112,47 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   ├── Dockerfile
-│   │   ├── src/
-│   │   │   ├── bin/
-│   │   │   │   ├── api.ts                           # API HTTP — composition root awilix
-│   │   │   │   └── consumer.ts                      # Consumer NATS — composition root awilix
-│   │   │   ├── domain/
-│   │   │   │   ├── entity/
-│   │   │   │   │   ├── user.ts                      # Classe de dominio + static create
-│   │   │   │   │   └── errors.ts                    # Classes de erro de dominio
-│   │   │   │   ├── usecase/
-│   │   │   │   │   └── user/                        # Subpasta por contexto de dominio
-│   │   │   │   │       ├── create.ts                # CreateUseCase interface
-│   │   │   │   │       ├── get-by-id.ts             # GetByIdUseCase interface
-│   │   │   │   │       └── list.ts                  # ListUseCase interface
-│   │   │   │   ├── repository/
-│   │   │   │   │   └── user-repository.ts           # Interface de repositorio
-│   │   │   │   ├── event/
-│   │   │   │   │   └── user-event.ts                # Interface de eventos/mensageria
-│   │   │   │   └── <lib>/                           # Interfaces para libs externas
-│   │   │   │       └── <name>.ts                    # Interface de inversao de dependencia
-│   │   │   ├── application/
-│   │   │   │   └── usecase/
-│   │   │   │       └── user/                        # Subpasta por contexto de dominio
-│   │   │   │           ├── create-usecase.ts        # Implementacao do use case
-│   │   │   │           ├── create-usecase.test.ts   # Teste unitario (vitest + vi.fn)
-│   │   │   │           ├── get-by-id-usecase.ts
-│   │   │   │           └── list-usecase.ts
-│   │   │   └── infrastructure/
-│   │   │       ├── config/
-│   │   │       │   ├── config.ts                    # AppConfig + loadConfig
-│   │   │       │   └── container.ts                 # registerInfrastructure (providers de infra)
-│   │   │       ├── controller/
-│   │   │       │   └── user-controller.ts           # Controllers HTTP (Hyper-Express) — apenas APIs
-│   │   │       ├── repository/
-│   │   │       │   ├── user-repository.ts           # Implementacao PostgreSQL (pg.Pool)
-│   │   │       │   └── user-repository.integration.test.ts
-│   │   │       ├── publisher/
-│   │   │       │   ├── user-publisher.ts            # Implementacao NATS JetStream
-│   │   │       │   └── user-publisher.integration.test.ts
-│   │   │       ├── subscriber/
-│   │   │       │   └── user-subscriber.ts           # Consumer NATS — apenas Consumers
-│   │   │       └── adapter/
-│   │   │           └── <lib>-adapter.ts             # Implementacoes de interfaces de libs externas
+│   │   ├── bin/
+│   │   │   ├── api.ts                               # API HTTP — composition root awilix
+│   │   │   └── consumer.ts                          # Consumer NATS — composition root awilix
+│   │   ├── domain/
+│   │   │   ├── entity/
+│   │   │   │   ├── user.ts                          # Classe de dominio + static create
+│   │   │   │   └── errors.ts                        # Classes de erro de dominio
+│   │   │   ├── usecase/
+│   │   │   │   └── user/                            # Subpasta por contexto de dominio
+│   │   │   │       ├── create.ts                    # CreateUseCase interface
+│   │   │   │       ├── get-by-id.ts                 # GetByIdUseCase interface
+│   │   │   │       └── list.ts                      # ListUseCase interface
+│   │   │   ├── repository/
+│   │   │   │   └── user-repository.ts               # Interface de repositorio
+│   │   │   ├── event/
+│   │   │   │   └── user-event.ts                    # Interface de eventos/mensageria
+│   │   │   └── <lib>/                               # Interfaces para libs externas
+│   │   │       └── <name>.ts                        # Interface de inversao de dependencia
+│   │   ├── application/
+│   │   │   └── usecase/
+│   │   │       └── user/                            # Subpasta por contexto de dominio
+│   │   │           ├── create-usecase.ts            # Implementacao do use case
+│   │   │           ├── create-usecase.test.ts       # Teste unitario (vitest + vi.fn)
+│   │   │           ├── get-by-id-usecase.ts
+│   │   │           └── list-usecase.ts
+│   │   ├── infrastructure/
+│   │   │   ├── config/
+│   │   │   │   ├── config.ts                        # AppConfig + loadConfig
+│   │   │   │   └── container.ts                     # registerInfrastructure (providers de infra)
+│   │   │   ├── controller/
+│   │   │   │   └── user-controller.ts               # Controllers HTTP (Hyper-Express) — apenas APIs
+│   │   │   ├── repository/
+│   │   │   │   ├── user-repository.ts               # Implementacao PostgreSQL (pg.Pool)
+│   │   │   │   └── user-repository.integration.test.ts
+│   │   │   ├── publisher/
+│   │   │   │   ├── user-publisher.ts                # Implementacao NATS JetStream
+│   │   │   │   └── user-publisher.integration.test.ts
+│   │   │   ├── subscriber/
+│   │   │   │   └── user-subscriber.ts               # Consumer NATS — apenas Consumers
+│   │   │   └── adapter/
+│   │   │       └── <lib>-adapter.ts                 # Implementacoes de interfaces de libs externas
 │   │   └── test/
 │   │       └── integration/
 │   │           ├── testhelper/
@@ -166,13 +164,12 @@ Domain  <--  Application  <--  Infrastructure  <--  src/bin/
 │       ├── package.json
 │       ├── tsconfig.json
 │       ├── Dockerfile
-│       ├── src/
-│       │   ├── bin/
-│       │   │   ├── api.ts
-│       │   │   └── consumer.ts
-│       │   ├── domain/
-│       │   ├── application/
-│       │   └── infrastructure/
+│       ├── bin/
+│       │   ├── api.ts
+│       │   └── consumer.ts
+│       ├── domain/
+│       ├── application/
+│       ├── infrastructure/
 │       └── test/
 │           └── integration/
 ```
@@ -252,8 +249,8 @@ Cada app importa `@org/pkg` via protocolo `workspace:`:
   "private": true,
   "type": "module",
   "scripts": {
-    "dev:api": "tsx watch src/bin/api.ts",
-    "dev:consumer": "tsx watch src/bin/consumer.ts",
+    "dev:api": "tsx watch bin/api.ts",
+    "dev:consumer": "tsx watch bin/consumer.ts",
     "build": "tsc -p tsconfig.json",
     "start:api": "node dist/bin/api.js",
     "start:consumer": "node dist/bin/consumer.js",
@@ -303,19 +300,20 @@ Cada app importa `@org/pkg` via protocolo `workspace:`:
 **Regras do workspace:**
 - Todos os pacotes usam `"type": "module"` (ESM). Imports relativos **sempre com extensao `.js`** (resolucao NodeNext): `import { User } from '../entity/user.js'`.
 - `verbatimModuleSyntax` obriga `import type` para imports somente de tipo.
+- Fontes vivem na **raiz de cada workspace** (sem pasta `src/`). O `tsconfig.json` de cada app usa `rootDir: "."` e `include` explicito das pastas de codigo (`["bin/**/*", "domain/**/*", "application/**/*", "infrastructure/**/*"]`; no `pkg/`, os modulos compartilhados) com `exclude` de `dist` e `test` — o build continua emitindo `dist/bin/api.js`.
 - `pnpm -r` executa scripts em ordem topologica — `pkg/` e construido antes dos apps que dependem dele.
 - **Nunca minificar** o build: o awilix em modo CLASSIC resolve dependencias pelo **nome dos parametros do constructor**; minificacao quebra a resolucao.
 
-### Convencao de Nomes para `apps/` e `src/bin/`
+### Convencao de Nomes para `apps/` e `bin/`
 
 - **Apps**: `apps/<app-name>/` -- lowercase (ex: `apps/user/`, `apps/billing/`).
-- **APIs**: `apps/<app>/src/bin/api.ts`.
-- **Consumers**: `apps/<app>/src/bin/consumer.ts`. Se houver multiplos consumers, usar `src/bin/consumer-<dominio>.ts`.
-- Cada arquivo em `src/bin/` e um **composition root completo**: carrega config, registra o container awilix, inicia o processo e trata shutdown. Nenhuma logica de negocio.
+- **APIs**: `apps/<app>/bin/api.ts`.
+- **Consumers**: `apps/<app>/bin/consumer.ts`. Se houver multiplos consumers, usar `bin/consumer-<dominio>.ts`.
+- Cada arquivo em `bin/` e um **composition root completo**: carrega config, registra o container awilix, inicia o processo e trata shutdown. Nenhuma logica de negocio.
 
 ---
 
-## Camada de Dominio (`src/domain/`)
+## Camada de Dominio (`domain/`)
 
 A camada de dominio contem **entidades** e **contratos** (interfaces). Nao possui dependencias externas — apenas TypeScript puro e APIs nativas do Node (`node:crypto`, etc. quando estritamente necessario). **Isolada dentro de cada app.**
 
@@ -326,7 +324,7 @@ Classes representando conceitos de dominio. Cada entidade e uma **classe** com u
 **Padrao:**
 
 ```typescript
-// apps/user/src/domain/entity/user.ts
+// apps/user/domain/entity/user.ts
 export interface UserProps {
   id: string;
   name: string;
@@ -374,7 +372,7 @@ export class User {
 **Erros de dominio** (cada app define os seus em `entity/errors.ts`):
 
 ```typescript
-// apps/user/src/domain/entity/errors.ts
+// apps/user/domain/entity/errors.ts
 
 /** Classe base para todos os erros de dominio do app. */
 export class DomainError extends Error {
@@ -429,7 +427,7 @@ Interfaces definindo os use cases de dominio. Cada use case e representado por *
 **Estrutura de diretorios:**
 
 ```
-src/domain/usecase/
+domain/usecase/
 └── user/
     ├── create.ts             # CreateUseCase interface
     ├── get-by-id.ts          # GetByIdUseCase interface
@@ -439,7 +437,7 @@ src/domain/usecase/
 **Padrao:**
 
 ```typescript
-// apps/user/src/domain/usecase/user/create.ts
+// apps/user/domain/usecase/user/create.ts
 import type { User } from '../../entity/user.js';
 
 export interface CreateInput {
@@ -457,7 +455,7 @@ export interface CreateUseCase {
 ```
 
 ```typescript
-// apps/user/src/domain/usecase/user/get-by-id.ts
+// apps/user/domain/usecase/user/get-by-id.ts
 import type { User } from '../../entity/user.js';
 
 export interface GetByIdInput {
@@ -470,7 +468,7 @@ export interface GetByIdUseCase {
 ```
 
 ```typescript
-// apps/user/src/domain/usecase/user/list.ts
+// apps/user/domain/usecase/user/list.ts
 import type { User } from '../../entity/user.js';
 
 export interface ListInput {
@@ -503,7 +501,7 @@ Interfaces definindo contratos de persistencia.
 **Padrao:**
 
 ```typescript
-// apps/user/src/domain/repository/user-repository.ts
+// apps/user/domain/repository/user-repository.ts
 import type { User } from '../entity/user.js';
 
 export interface UserRepository {
@@ -529,7 +527,7 @@ Interfaces definindo contratos de mensageria/eventos.
 **Padrao:**
 
 ```typescript
-// apps/user/src/domain/event/user-event.ts
+// apps/user/domain/event/user-event.ts
 import type { User } from '../entity/user.js';
 
 export interface UserEvent {
@@ -552,7 +550,7 @@ Toda biblioteca externa utilizada no projeto **deve ser acessada via inversao de
 **Estrutura de diretorios:**
 
 ```
-src/domain/
+domain/
 ├── crypt/
 │   └── hasher.ts              # Interface para hashing de senhas
 ├── token/
@@ -564,7 +562,7 @@ src/domain/
 **Padrao:**
 
 ```typescript
-// apps/user/src/domain/crypt/hasher.ts
+// apps/user/domain/crypt/hasher.ts
 export interface Hasher {
   hash(plain: string): Promise<string>;
   compare(hashed: string, plain: string): Promise<boolean>;
@@ -579,7 +577,7 @@ export interface Hasher {
 
 ---
 
-## Camada de Aplicacao (`src/application/`)
+## Camada de Aplicacao (`application/`)
 
 Contem a **implementacao** dos use cases. Orquestra entidades, repositorios e eventos. **Isolada dentro de cada app.**
 
@@ -590,7 +588,7 @@ Implementacoes dos use cases, organizadas em **subpastas por contexto de dominio
 **Estrutura de diretorios:**
 
 ```
-src/application/usecase/
+application/usecase/
 └── user/
     ├── create-usecase.ts           # CreateUseCase class + perform
     ├── create-usecase.test.ts      # Teste unitario com vi.fn()
@@ -601,7 +599,7 @@ src/application/usecase/
 **Padrao:**
 
 ```typescript
-// apps/user/src/application/usecase/user/create-usecase.ts
+// apps/user/application/usecase/user/create-usecase.ts
 import { UserAlreadyExistsError } from '../../../domain/entity/errors.js';
 import { User } from '../../../domain/entity/user.js';
 import type { UserEvent } from '../../../domain/event/user-event.js';
@@ -640,13 +638,13 @@ export class CreateUseCase implements usecase.CreateUseCase {
 - Dependencias entram **pelo constructor** como `private readonly` e sao **interfaces de dominio** (nunca tipos concretos).
 - Os **nomes dos parametros do constructor** devem coincidir exatamente com os nomes registrados no container awilix (modo CLASSIC): `userRepository`, `userEvent`, `hasher`, etc.
 - O metodo implementado e sempre `perform`.
-- Depende apenas de `src/domain/`. Nunca importa `infrastructure/` ou `@org/pkg`.
+- Depende apenas de `domain/`. Nunca importa `infrastructure/` ou `@org/pkg`.
 - Erros re-lancados com contexto usando `cause`: `throw new Error('create user: failed', { cause: err })` — ou simplesmente propagados (`async/await` ja propaga).
 - Evento publicado **apos** persistencia no banco, nunca antes.
 
 ---
 
-## Camada de Infraestrutura (`src/infrastructure/`)
+## Camada de Infraestrutura (`infrastructure/`)
 
 Implementa contratos de dominio usando tecnologias concretas e gerencia a configuracao da aplicacao. Cada binario conecta apenas o que precisa.
 
@@ -668,7 +666,7 @@ Ele centraliza:
 **Estrutura do `pkg/controller/`:**
 
 ```
-pkg/src/
+pkg/
 └── controller/
     ├── base-controller.ts      # BaseController class + handle/bindAndHandle (template method)
     ├── request-context.ts      # RequestContext interface
@@ -680,7 +678,7 @@ pkg/src/
 **Estrutura de cada app (so o codigo especifico):**
 
 ```
-apps/user/src/infrastructure/controller/
+apps/user/infrastructure/controller/
 ├── user-controller.ts          # UserController (estende pkg BaseController)
 └── order-controller.ts         # OrderController (estende pkg BaseController)
 ```
@@ -688,7 +686,7 @@ apps/user/src/infrastructure/controller/
 **`pkg/controller/request-context.ts` — RequestContext:**
 
 ```typescript
-// pkg/src/controller/request-context.ts
+// pkg/controller/request-context.ts
 import type { Logger } from 'pino';
 
 /**
@@ -707,7 +705,7 @@ export interface RequestContext {
 **`pkg/controller/errors.ts` — Erros HTTP genericos:**
 
 ```typescript
-// pkg/src/controller/errors.ts
+// pkg/controller/errors.ts
 
 /** Erro com status HTTP explicito (equivalente a um "erro de framework"). */
 export class HttpError extends Error {
@@ -731,7 +729,7 @@ export class ValidationError extends HttpError {
 **`pkg/controller/base-controller.ts` — BaseController (template method):**
 
 ```typescript
-// pkg/src/controller/base-controller.ts
+// pkg/controller/base-controller.ts
 import type { MiddlewareHandler, Request, Response } from 'hyper-express';
 import type { Logger } from 'pino';
 import type { ZodType } from 'zod';
@@ -852,7 +850,7 @@ export abstract class BaseController {
 O projeto utiliza **zod** como engine de validacao. Todo body e validado com `schema.safeParse` dentro do `bindAndHandle` — o handler nunca ve input invalido.
 
 ```typescript
-// pkg/src/controller/validation.ts
+// pkg/controller/validation.ts
 import type { ZodError } from 'zod';
 
 /**
@@ -871,7 +869,7 @@ export function formatZodError(error: ZodError): string {
 **Servidor HTTP padrao (`pkg/http-server/server.ts`):**
 
 ```typescript
-// pkg/src/http-server/server.ts
+// pkg/http-server/server.ts
 import { randomUUID } from 'node:crypto';
 
 import HyperExpress from 'hyper-express';
@@ -965,7 +963,7 @@ type CreateOrderInput = z.infer<typeof createOrderSchema>;
 **`pkg/controller/error-mapper.ts` — Mapeamento extensivel de erros:**
 
 ```typescript
-// pkg/src/controller/error-mapper.ts
+// pkg/controller/error-mapper.ts
 import { HttpError } from './errors.js';
 
 /** ErrorResponse e o formato padrao de resposta de erro da API. */
@@ -1019,7 +1017,7 @@ export class ErrorMapper {
 **Registro dos erros no app (wiring no `bin/api.ts`):**
 
 ```typescript
-// apps/user/src/bin/api.ts
+// apps/user/bin/api.ts
 import { ErrorMapper } from '@org/pkg/controller';
 
 import {
@@ -1047,7 +1045,7 @@ function provideErrorMapper(): ErrorMapper {
 #### Controller Concreto — Exemplo Simples (sem transaction)
 
 ```typescript
-// apps/user/src/infrastructure/controller/user-controller.ts
+// apps/user/infrastructure/controller/user-controller.ts
 import { BaseController, ErrorMapper, type RequestContext } from '@org/pkg/controller';
 import HyperExpress, { type Request, type Response } from 'hyper-express';
 import type { Logger } from 'pino';
@@ -1163,7 +1161,7 @@ export class UserController extends BaseController {
 Quando um endpoint precisa executar **multiplas operacoes atomicas** (ex: criar order + items + atualizar estoque), o controller orquestra a transaction via `Transactor`:
 
 ```typescript
-// apps/billing/src/infrastructure/controller/order-controller.ts
+// apps/billing/infrastructure/controller/order-controller.ts
 import { BaseController, ErrorMapper, type RequestContext } from '@org/pkg/controller';
 import HyperExpress, { type Request, type Response } from 'hyper-express';
 import type { Logger } from 'pino';
@@ -1287,7 +1285,7 @@ export class OrderController extends BaseController {
 O `Transactor` e a **unica excecao documentada** de import externo no dominio: importa **apenas o tipo** `PoolClient` do `pg` (type-only, sem codigo em runtime), cumprindo o papel que um handle de transaction da stdlib cumpriria.
 
 ```typescript
-// apps/billing/src/domain/repository/transactor.ts
+// apps/billing/domain/repository/transactor.ts
 import type { PoolClient } from 'pg';
 
 export interface Transactor {
@@ -1296,7 +1294,7 @@ export interface Transactor {
 ```
 
 ```typescript
-// apps/billing/src/infrastructure/repository/transactor.ts
+// apps/billing/infrastructure/repository/transactor.ts
 import { runInTx } from '@org/pkg/postgres';
 import type { Pool, PoolClient } from 'pg';
 
@@ -1314,7 +1312,7 @@ export class PostgresTransactor implements Transactor {
 **Helper compartilhado (`pkg/postgres/tx.ts`):**
 
 ```typescript
-// pkg/src/postgres/tx.ts
+// pkg/postgres/tx.ts
 import type { Pool, PoolClient } from 'pg';
 
 /**
@@ -1342,7 +1340,7 @@ export async function runInTx<T>(pool: Pool, fn: (client: PoolClient) => Promise
 Quando um repositorio participa de uma transaction externa, expoe metodos que recebem `PoolClient`:
 
 ```typescript
-// apps/billing/src/domain/repository/order-repository.ts
+// apps/billing/domain/repository/order-repository.ts
 import type { PoolClient } from 'pg';
 
 import type { Order, OrderItem } from '../entity/order.js';
@@ -1359,7 +1357,7 @@ export interface OrderRepository {
 ```
 
 ```typescript
-// apps/billing/src/infrastructure/repository/order-repository.ts
+// apps/billing/infrastructure/repository/order-repository.ts
 
 export class PostgresOrderRepository implements OrderRepository {
   constructor(private readonly pool: Pool) {}
@@ -1413,7 +1411,7 @@ export class PostgresOrderRepository implements OrderRepository {
 #### Regras do Controller
 
 - `BaseController`, `RequestContext`, `bindAndHandle`, `ErrorMapper` e `ErrorResponse` vivem em **`pkg/controller/`**. Nenhum app reimplementa essa logica.
-- Arquivo: `<name>-controller.ts` (ex: `user-controller.ts`) em `src/infrastructure/controller/`.
+- Arquivo: `<name>-controller.ts` (ex: `user-controller.ts`) em `infrastructure/controller/`.
 - Classe: `<Name>Controller` que **estende** `BaseController`.
 - Constructor: `(errorMapper, logger, ...useCases)` chamando `super(errorMapper, logger)` — resolvido via awilix (nomes dos parametros = nomes de registro no container).
 - Dependencias sao **interfaces de dominio de use case**, **repositorios** (quando precisa de tx) e **Transactor**.
@@ -1436,7 +1434,7 @@ Handlers de consumo NATS JetStream. Cada subscriber consome de um subject especi
 **Padrao:**
 
 ```typescript
-// apps/billing/src/infrastructure/subscriber/user-subscriber.ts
+// apps/billing/infrastructure/subscriber/user-subscriber.ts
 import { randomUUID } from 'node:crypto';
 
 import type { Envelope, UserCreatedData } from '@org/pkg/event';
@@ -1523,7 +1521,7 @@ Implementacoes de repositorio usando PostgreSQL via `pg` (node-postgres). Querie
 **Padrao:**
 
 ```typescript
-// apps/user/src/infrastructure/repository/user-repository.ts
+// apps/user/infrastructure/repository/user-repository.ts
 import type { Pool } from 'pg';
 
 import { User } from '../../domain/entity/user.js';
@@ -1647,7 +1645,7 @@ Implementacoes de eventos usando NATS JetStream.
 **Padrao:**
 
 ```typescript
-// apps/user/src/infrastructure/publisher/user-publisher.ts
+// apps/user/infrastructure/publisher/user-publisher.ts
 import { SUBJECT_USER_CREATED, SUBJECT_USER_UPDATED } from '@org/pkg/event';
 import type { Publisher } from '@org/pkg/nats';
 
@@ -1678,7 +1676,7 @@ export class UserPublisher implements UserEvent {
 **Publisher generico compartilhado (`pkg/nats/publisher.ts`):**
 
 ```typescript
-// pkg/src/nats/publisher.ts
+// pkg/nats/publisher.ts
 import { randomUUID } from 'node:crypto';
 
 import type { JetStreamClient } from 'nats';
@@ -1721,7 +1719,7 @@ Implementacoes concretas das interfaces de bibliotecas externas definidas em `do
 **Padrao:**
 
 ```typescript
-// apps/user/src/infrastructure/adapter/bcrypt-adapter.ts
+// apps/user/infrastructure/adapter/bcrypt-adapter.ts
 import bcrypt from 'bcrypt';
 
 import type { Hasher } from '../../domain/crypt/hasher.js';
@@ -1752,7 +1750,7 @@ Configuracao da aplicacao e registro compartilhado de infraestrutura no containe
 **`config.ts`** -- Interface de configuracao e carregamento de variaveis de ambiente:
 
 ```typescript
-// apps/user/src/infrastructure/config/config.ts
+// apps/user/infrastructure/config/config.ts
 
 export interface AppConfig {
   appPort: number;
@@ -1802,7 +1800,7 @@ O `.env` e carregado no **topo de cada binario** com `import 'dotenv/config'` �
 **`container.ts`** -- Registro compartilhado de infraestrutura (equivalente ao modulo de infra):
 
 ```typescript
-// apps/user/src/infrastructure/config/container.ts
+// apps/user/infrastructure/config/container.ts
 import { createPool } from '@org/pkg/postgres';
 import { connectNats, Publisher } from '@org/pkg/nats';
 import { createLogger } from '@org/pkg/logger';
@@ -1873,7 +1871,7 @@ export async function registerInfrastructure(container: AwilixContainer): Promis
 
 ## Camada de Pacotes (`pkg/` — workspace `@org/pkg`)
 
-Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `src/` de nenhum app.
+Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam codigo de nenhum app.
 
 | Modulo | Import | Responsabilidade |
 |---|---|---|
@@ -1887,7 +1885,7 @@ Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `sr
 **`pkg/logger/logger.ts`:**
 
 ```typescript
-// pkg/src/logger/logger.ts
+// pkg/logger/logger.ts
 import { pino, type Logger } from 'pino';
 
 export interface LoggerConfig {
@@ -1908,7 +1906,7 @@ export function createLogger(config: LoggerConfig): Logger {
 **`pkg/postgres/conn.ts`:**
 
 ```typescript
-// pkg/src/postgres/conn.ts
+// pkg/postgres/conn.ts
 import pg from 'pg';
 
 export interface PostgresConfig {
@@ -1939,7 +1937,7 @@ export function createPool(config: PostgresConfig): pg.Pool {
 **`pkg/nats/conn.ts` e `pkg/nats/stream.ts`:**
 
 ```typescript
-// pkg/src/nats/conn.ts
+// pkg/nats/conn.ts
 import { connect, type NatsConnection } from 'nats';
 
 export interface NatsConfig {
@@ -1960,7 +1958,7 @@ export async function connectNats(config: NatsConfig): Promise<NatsConnection> {
 ```
 
 ```typescript
-// pkg/src/nats/stream.ts
+// pkg/nats/stream.ts
 import { RetentionPolicy, StorageType, type NatsConnection, type StreamConfig } from 'nats';
 
 export interface StreamOptions {
@@ -1997,7 +1995,7 @@ export async function ensureStream(nc: NatsConnection, opts: StreamOptions): Pro
 **`pkg/nats/subscriber.ts`:**
 
 ```typescript
-// pkg/src/nats/subscriber.ts
+// pkg/nats/subscriber.ts
 import { AckPolicy, type ConsumerMessages, type JsMsg, type NatsConnection } from 'nats';
 
 export interface ConsumerOptions {
@@ -2044,7 +2042,7 @@ export async function subscribe(
 **Regras:**
 - Sem estado global (sem `let`/`const` de modulo para conexoes — tudo criado por funcao e injetado).
 - Funcoes puras que recebem e retornam dependencias explicitamente.
-- Nunca importa nada de `apps/*/src/`.
+- Nunca importa nada de `apps/*`.
 - Pode ser usado por outros projetos.
 
 ---
@@ -2064,7 +2062,7 @@ O container awilix e criado em **modo CLASSIC**: as dependencias sao resolvidas 
 Cada binario de API compoe seu proprio container, reutilizando `registerInfrastructure` para infraestrutura compartilhada.
 
 ```typescript
-// apps/user/src/bin/api.ts
+// apps/user/bin/api.ts
 import 'dotenv/config';
 
 import { ErrorMapper } from '@org/pkg/controller';
@@ -2165,7 +2163,7 @@ main().catch((err: unknown) => {
 Cada binario de consumer compoe seu proprio container. **Sem Hyper-Express, sem controllers, sem rotas.**
 
 ```typescript
-// apps/billing/src/bin/consumer.ts
+// apps/billing/bin/consumer.ts
 import 'dotenv/config';
 
 import { ensureStream, subscribe } from '@org/pkg/nats';
@@ -2271,7 +2269,7 @@ Os handlers de `SIGTERM`/`SIGINT` executam o shutdown graceful na ordem:
 ### Documentacao OpenAPI (apenas APIs)
 
 - Handlers anotados com JSDoc `@openapi` (formato OpenAPI 3) diretamente no controller.
-- O spec e gerado com **swagger-jsdoc** varrendo `src/infrastructure/controller/**/*.ts` e servido com **swagger-ui** em `/docs` (rota registrada no `bin/api.ts`).
+- O spec e gerado com **swagger-jsdoc** varrendo `infrastructure/controller/**/*.ts` e servido com **swagger-ui** em `/docs` (rota registrada no `bin/api.ts`).
 - Script por app: `"openapi": "tsx scripts/generate-openapi.ts"` — regenerar sempre que rotas/schemas mudarem.
 
 ---
@@ -2282,7 +2280,7 @@ Os handlers de `SIGTERM`/`SIGINT` executam o shutdown graceful na ordem:
 
 | Localizacao | Padrao | Exemplo |
 |---|---|---|
-| `src/bin/` | `<binary>.ts` | `api.ts`, `consumer.ts` |
+| `bin/` | `<binary>.ts` | `api.ts`, `consumer.ts` |
 | `domain/entity/` | `<name>.ts` | `user.ts` |
 | `domain/usecase/<context>/` | `<action>.ts` | `user/create.ts` |
 | `domain/repository/` | `<name>-repository.ts` | `user-repository.ts` |
@@ -2385,7 +2383,7 @@ Cada app tem seu proprio banco (database-per-service). Comunicacao entre apps e 
 ### Contratos de Eventos Compartilhados (`pkg/event/`)
 
 ```typescript
-// pkg/src/event/event.ts
+// pkg/event/event.ts
 
 /** Envelope base de todo evento publicado no JetStream. */
 export interface Envelope<T = unknown> {
@@ -2398,7 +2396,7 @@ export interface Envelope<T = unknown> {
 ```
 
 ```typescript
-// pkg/src/event/user.ts
+// pkg/event/user.ts
 
 export const SUBJECT_USER_CREATED = 'events.user.created';
 export const SUBJECT_USER_UPDATED = 'events.user.updated';
@@ -2425,7 +2423,7 @@ Exemplo: adicionando o dominio `Order` no app `billing`.
 
 ### Passo 1 -- Entidade de Dominio
 
-Crie `apps/billing/src/domain/entity/order.ts`:
+Crie `apps/billing/domain/entity/order.ts`:
 
 ```typescript
 export interface OrderProps {
@@ -2472,7 +2470,7 @@ export class Order {
 
 Crie uma interface por use case, organizadas por contexto:
 
-Crie `apps/billing/src/domain/usecase/order/create.ts`:
+Crie `apps/billing/domain/usecase/order/create.ts`:
 
 ```typescript
 import type { Order } from '../../entity/order.js';
@@ -2493,7 +2491,7 @@ export interface CreateUseCase {
 
 ### Passo 2b -- Interfaces de Dominio (Repository e Event)
 
-Crie `apps/billing/src/domain/repository/order-repository.ts`:
+Crie `apps/billing/domain/repository/order-repository.ts`:
 
 ```typescript
 import type { Order } from '../entity/order.js';
@@ -2504,7 +2502,7 @@ export interface OrderRepository {
 }
 ```
 
-Crie `apps/billing/src/domain/event/order-event.ts` (se aplicavel):
+Crie `apps/billing/domain/event/order-event.ts` (se aplicavel):
 
 ```typescript
 import type { Order } from '../entity/order.js';
@@ -2516,7 +2514,7 @@ export interface OrderEvent {
 
 ### Passo 3 -- Use Case de Aplicacao
 
-Crie `apps/billing/src/application/usecase/order/create-usecase.ts`:
+Crie `apps/billing/application/usecase/order/create-usecase.ts`:
 
 ```typescript
 import { Order } from '../../../domain/entity/order.js';
@@ -2536,19 +2534,19 @@ export class CreateUseCase implements usecase.CreateUseCase {
 
 ### Passo 4 -- Repositorio de Infraestrutura
 
-Crie `apps/billing/src/infrastructure/repository/order-repository.ts` (`PostgresOrderRepository`, queries manuais com `$1`, `RETURNING "id"`, `null` quando nao encontrado).
+Crie `apps/billing/infrastructure/repository/order-repository.ts` (`PostgresOrderRepository`, queries manuais com `$1`, `RETURNING "id"`, `null` quando nao encontrado).
 
 ### Passo 5 -- Publisher de Infraestrutura (se aplicavel)
 
-Crie `apps/billing/src/infrastructure/publisher/order-publisher.ts` (`OrderPublisher implements OrderEvent`, subject e data em `pkg/event/billing.ts`).
+Crie `apps/billing/infrastructure/publisher/order-publisher.ts` (`OrderPublisher implements OrderEvent`, subject e data em `pkg/event/billing.ts`).
 
 ### Passo 6a -- Controller (se a API precisar)
 
-Crie `apps/billing/src/infrastructure/controller/order-controller.ts` (estende `BaseController`, schemas zod no proprio arquivo, `registerRoutes`).
+Crie `apps/billing/infrastructure/controller/order-controller.ts` (estende `BaseController`, schemas zod no proprio arquivo, `registerRoutes`).
 
 ### Passo 6b -- Subscriber (se o Consumer precisar)
 
-Crie `apps/billing/src/infrastructure/subscriber/order-subscriber.ts` (`handle<EventName>` com `ack`/`nak`/`term`).
+Crie `apps/billing/infrastructure/subscriber/order-subscriber.ts` (`handle<EventName>` com `ack`/`nak`/`term`).
 
 ### Passo 7 -- Migration SQL
 
@@ -2575,7 +2573,7 @@ Aplicar com `dbmate --migrations-dir migrations/billing up` (a `DATABASE_URL` de
 
 ### Passo 8 -- Composicao awilix
 
-**Para a API** -- atualize `apps/billing/src/bin/api.ts`:
+**Para a API** -- atualize `apps/billing/bin/api.ts`:
 
 ```typescript
 container.register({
@@ -2593,12 +2591,12 @@ Registre as rotas no mesmo arquivo:
 container.resolve<OrderController>('orderController').registerRoutes(server);
 ```
 
-**Para o Consumer** -- atualize `apps/billing/src/bin/consumer.ts` registrando o subscriber e o `subscribe(...)` do novo consumer duravel.
+**Para o Consumer** -- atualize `apps/billing/bin/consumer.ts` registrando o subscriber e o `subscribe(...)` do novo consumer duravel.
 
 ### Passo 9 -- Testes
 
-- Unitario: `apps/billing/src/application/usecase/order/create-usecase.test.ts` (vitest, dependencias mockadas com `vi.fn()`).
-- Integracao: `apps/billing/src/infrastructure/repository/order-repository.integration.test.ts` (testcontainers com PostgreSQL real).
+- Unitario: `apps/billing/application/usecase/order/create-usecase.test.ts` (vitest, dependencias mockadas com `vi.fn()`).
+- Integracao: `apps/billing/infrastructure/repository/order-repository.integration.test.ts` (testcontainers com PostgreSQL real).
 
 ### Passo 10 -- OpenAPI (apenas APIs)
 
@@ -2606,31 +2604,31 @@ Anote os handlers com JSDoc `@openapi` e execute `pnpm --filter @org/billing ope
 
 ### Checklist -- Nova Feature
 
-- [ ] `src/domain/entity/<name>.ts` -- Entidade (classe com `static create`)
-- [ ] `src/domain/usecase/<context>/<action>.ts` -- 1 interface por use case (metodo `perform`)
-- [ ] `src/domain/repository/<name>-repository.ts` -- Interface de repositorio
-- [ ] `src/domain/event/<name>-event.ts` -- Interface de evento (se aplicavel)
-- [ ] `src/domain/<lib>/<name>.ts` -- Interface para lib externa (se aplicavel)
-- [ ] `src/application/usecase/<context>/<action>-usecase.ts` -- Implementacao do use case
-- [ ] `src/application/usecase/<context>/<action>-usecase.test.ts` -- Teste unitario (vitest + `vi.fn`)
-- [ ] `src/infrastructure/repository/<name>-repository.ts` -- Implementacao PostgreSQL (`pg.Pool`)
-- [ ] `src/infrastructure/repository/<name>-repository.integration.test.ts` -- Teste de integracao (testcontainers)
-- [ ] `src/infrastructure/publisher/<name>-publisher.ts` -- Implementacao NATS (se aplicavel)
-- [ ] `src/infrastructure/adapter/<lib>-adapter.ts` -- Implementacao de lib externa (se aplicavel)
-- [ ] `src/infrastructure/controller/<name>-controller.ts` -- Controller Hyper-Express + schemas zod (se API)
-- [ ] `src/infrastructure/subscriber/<name>-subscriber.ts` -- Subscriber NATS (se Consumer)
+- [ ] `domain/entity/<name>.ts` -- Entidade (classe com `static create`)
+- [ ] `domain/usecase/<context>/<action>.ts` -- 1 interface por use case (metodo `perform`)
+- [ ] `domain/repository/<name>-repository.ts` -- Interface de repositorio
+- [ ] `domain/event/<name>-event.ts` -- Interface de evento (se aplicavel)
+- [ ] `domain/<lib>/<name>.ts` -- Interface para lib externa (se aplicavel)
+- [ ] `application/usecase/<context>/<action>-usecase.ts` -- Implementacao do use case
+- [ ] `application/usecase/<context>/<action>-usecase.test.ts` -- Teste unitario (vitest + `vi.fn`)
+- [ ] `infrastructure/repository/<name>-repository.ts` -- Implementacao PostgreSQL (`pg.Pool`)
+- [ ] `infrastructure/repository/<name>-repository.integration.test.ts` -- Teste de integracao (testcontainers)
+- [ ] `infrastructure/publisher/<name>-publisher.ts` -- Implementacao NATS (se aplicavel)
+- [ ] `infrastructure/adapter/<lib>-adapter.ts` -- Implementacao de lib externa (se aplicavel)
+- [ ] `infrastructure/controller/<name>-controller.ts` -- Controller Hyper-Express + schemas zod (se API)
+- [ ] `infrastructure/subscriber/<name>-subscriber.ts` -- Subscriber NATS (se Consumer)
 - [ ] `migrations/<app>/NNNN_<descricao>.sql` -- Migration dbmate (`-- migrate:up` / `-- migrate:down`)
-- [ ] `apps/<app>/src/bin/api.ts` -- Registrar no container e chamar `registerRoutes` (se API)
-- [ ] `apps/<app>/src/bin/consumer.ts` -- Registrar subscriber e `subscribe(...)` (se Consumer)
+- [ ] `apps/<app>/bin/api.ts` -- Registrar no container e chamar `registerRoutes` (se API)
+- [ ] `apps/<app>/bin/consumer.ts` -- Registrar subscriber e `subscribe(...)` (se Consumer)
 - [ ] Anotar handlers com `@openapi` e regenerar o spec (se API)
 - [ ] Rodar os gates: `pnpm typecheck`, `pnpm lint`, `pnpm test`
 
 ### Checklist -- Novo App
 
 - [ ] Criar `apps/<app-name>/package.json` (`@org/<app-name>`, `"type": "module"`, `@org/pkg: workspace:*`)
-- [ ] Criar `apps/<app-name>/tsconfig.json` estendendo `tsconfig.base.json`
+- [ ] Criar `apps/<app-name>/tsconfig.json` estendendo `tsconfig.base.json` (fontes na raiz do app: `rootDir: "."` + `include` de `bin/`, `domain/`, `application/`, `infrastructure/`; `exclude` de `dist` e `test`)
 - [ ] Confirmar que `pnpm-workspace.yaml` cobre o novo app (`apps/*`)
-- [ ] Criar `apps/<app-name>/src/bin/api.ts` e/ou `src/bin/consumer.ts`
+- [ ] Criar `apps/<app-name>/bin/api.ts` e/ou `bin/consumer.ts`
 - [ ] Chamar `registerInfrastructure(container)` (config, logger, pool, natsConnection, publisher)
 - [ ] Registrar apenas repositorios, publishers, adapters, use cases e handlers necessarios
 - [ ] Definir startup (`createServer` + `registerRoutes` + `listen` para API; `ensureStream` + `subscribe` para Consumer)

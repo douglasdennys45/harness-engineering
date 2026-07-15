@@ -7,12 +7,12 @@ Este documento define a arquitetura do projeto, suas camadas, regras de dependen
 O projeto segue **Clean Architecture** com inversao de dependencia em uma estrutura de **monorepo** com multiplos microservicos. Camadas internas nunca importam camadas externas. Injecao de dependencia e gerenciada pelo **dependency-injector** (containers declarativos, injecao por constructor com argumentos nomeados). O monorepo suporta **N apps independentes** (APIs e Consumers) que compartilham bibliotecas via `pkg/` (workspace member `org-pkg`, modulo `org_pkg`).
 
 ```
-apps/<app-name>/src/<app>/bin/<binary>.py   Entry points (um por binario)
+apps/<app-name>/<app>/bin/<binary>.py   Entry points (um por binario)
        |
        v
-apps/<app-name>/src/<app>/domain/           Entidades, Protocols (sem dependencias externas)
-apps/<app-name>/src/<app>/application/      Implementacoes de use cases (depende apenas de domain)
-apps/<app-name>/src/<app>/infrastructure/   Controllers, repos, publisher, subscriber, config
+apps/<app-name>/<app>/domain/           Entidades, Protocols (sem dependencias externas)
+apps/<app-name>/<app>/application/      Implementacoes de use cases (depende apenas de domain)
+apps/<app-name>/<app>/infrastructure/   Controllers, repos, publisher, subscriber, config
        |
        v
 pkg/                                        Bibliotecas reutilizaveis compartilhadas entre apps
@@ -41,15 +41,15 @@ pkg/                                        Bibliotecas reutilizaveis compartilh
 
 | Tipo | Proposito | Exemplo |
 |---|---|---|
-| **API** | Servidor HTTP expondo endpoints REST (Robyn) | `apps/user/src/user/bin/api.py` |
-| **Consumer** | Processo em background consumindo eventos NATS JetStream (asyncio puro, sem Robyn) | `apps/user/src/user/bin/consumer.py` |
+| **API** | Servidor HTTP expondo endpoints REST (Robyn) | `apps/user/user/bin/api.py` |
+| **Consumer** | Processo em background consumindo eventos NATS JetStream (asyncio puro, sem Robyn) | `apps/user/user/bin/consumer.py` |
 
-Em desenvolvimento a API roda com hot reload: `uv run robyn apps/user/src/user/bin/api.py --dev`. Em producao: `uv run python -m user.bin.api` (1 processo por replica de container; escala horizontal via replicas — ver secao de escala do Robyn na skill `robyn-best-practices`).
+Em desenvolvimento a API roda com hot reload: `uv run robyn apps/user/user/bin/api.py --dev`. Em producao: `uv run python -m user.bin.api` (1 processo por replica de container; escala horizontal via replicas — ver secao de escala do Robyn na skill `robyn-best-practices`).
 
 ### Regra de Dependencia
 
 ```
-Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
+Domain  <--  Application  <--  Infrastructure  <--  <app>/bin/
   ^                                  |
   |                                  v
   +--- nunca depende de -------->  pkg/
@@ -58,8 +58,8 @@ Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
 - `domain/` nao importa nenhuma biblioteca externa — apenas stdlib (`dataclasses`, `datetime`, `typing`). Excecao documentada: `if TYPE_CHECKING: from asyncpg import Connection` no `Transactor` (import somente de tipo, sem codigo em runtime — ver secao de transactions).
 - `application/` importa apenas `domain/`.
 - `infrastructure/` importa `domain/`, `org_pkg` e bibliotecas externas.
-- `pkg/` nunca importa `src/` de nenhum app.
-- `src/<app>/bin/<binary>.py` importa tudo para compor o container dependency-injector **daquele binario especifico** (composition root).
+- `pkg/` nunca importa o pacote de nenhum app.
+- `<app>/bin/<binary>.py` importa tudo para compor o container dependency-injector **daquele binario especifico** (composition root).
 
 ---
 
@@ -74,7 +74,7 @@ Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
 │
 ├── pkg/                                             # workspace member: org-pkg (modulo org_pkg)
 │   ├── pyproject.toml
-│   └── src/org_pkg/
+│   └── org_pkg/
 │       ├── __init__.py
 │       ├── postgres/
 │       │   ├── conn.py                              # Database (wrapper do pool asyncpg)
@@ -109,7 +109,7 @@ Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
 │   ├── user/                                        # workspace member: org-user (modulo user)
 │   │   ├── pyproject.toml
 │   │   ├── Dockerfile
-│   │   ├── src/user/
+│   │   ├── user/
 │   │   │   ├── __init__.py
 │   │   │   ├── bin/
 │   │   │   │   ├── api.py                           # API HTTP — composition root (Robyn)
@@ -151,7 +151,7 @@ Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
 │   │   │           └── <lib>_adapter.py             # Implementacoes de Protocols de libs externas
 │   │   └── tests/
 │   │       ├── fakes/                               # Fakes tipados das interfaces de dominio
-│   │       ├── unit/                                # Testes unitarios (pytest, espelham src/)
+│   │       ├── unit/                                # Testes unitarios (pytest, espelham user/)
 │   │       │   └── application/usecase/user/
 │   │       │       └── test_create_usecase.py
 │   │       └── integration/
@@ -164,7 +164,7 @@ Domain  <--  Application  <--  Infrastructure  <--  src/<app>/bin/
 │   └── billing/                                     # mesma estrutura interna (org-billing, modulo billing)
 │       ├── pyproject.toml
 │       ├── Dockerfile
-│       ├── src/billing/
+│       ├── billing/
 │       │   ├── bin/
 │       │   ├── domain/
 │       │   ├── application/
@@ -200,7 +200,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-src = ["pkg/src", "apps/*/src"]
+src = ["pkg", "apps/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "N", "ASYNC", "RUF"]
@@ -269,7 +269,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/org_pkg"]
+packages = ["org_pkg"]
 ```
 
 Cada app declara `org-pkg` como dependencia (resolvida via `[tool.uv.sources]` do workspace):
@@ -296,26 +296,26 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/user"]
+packages = ["user"]
 ```
 
 **Regras do workspace:**
-- Layout `src/` obrigatorio em todo member (`pkg/src/org_pkg/`, `apps/user/src/user/`) — evita imports acidentais do diretorio de trabalho.
+- Layout flat em todo member: o pacote vive direto na raiz do member (`pkg/org_pkg/`, `apps/user/user/`).
 - **Imports absolutos sempre**: `from user.domain.entity.user import User`, `from org_pkg.postgres import Database`. Nunca imports relativos entre camadas (`from ...domain import`) — o ruff (`TID`) pode reforcar.
 - Um unico ambiente virtual na raiz (`uv sync` instala todos os members em editable) — `uv run` na raiz enxerga todos os modulos.
 - `uv sync --locked` em CI garante que o `uv.lock` esta consistente com os `pyproject.toml`.
 - Todos os modulos publicos com type hints completos — `mypy --strict` e gate.
 
-### Convencao de Nomes para `apps/` e `src/<app>/bin/`
+### Convencao de Nomes para `apps/` e `<app>/bin/`
 
-- **Apps**: `apps/<app-name>/` — lowercase (ex: `apps/user/`, `apps/billing/`); pacote Python homonimo em `src/<app-name>/`.
-- **APIs**: `apps/<app>/src/<app>/bin/api.py`.
-- **Consumers**: `apps/<app>/src/<app>/bin/consumer.py`. Se houver multiplos consumers, usar `bin/consumer_<dominio>.py`.
+- **Apps**: `apps/<app-name>/` — lowercase (ex: `apps/user/`, `apps/billing/`); pacote Python homonimo em `<app-name>/`.
+- **APIs**: `apps/<app>/<app>/bin/api.py`.
+- **Consumers**: `apps/<app>/<app>/bin/consumer.py`. Se houver multiplos consumers, usar `bin/consumer_<dominio>.py`.
 - Cada arquivo em `bin/` e um **composition root completo**: carrega config, monta o container dependency-injector, inicia o processo e trata shutdown. Nenhuma logica de negocio.
 
 ---
 
-## Camada de Dominio (`src/<app>/domain/`)
+## Camada de Dominio (`<app>/domain/`)
 
 A camada de dominio contem **entidades** e **contratos** (Protocols). Nao possui dependencias externas — apenas Python puro e stdlib (`dataclasses`, `datetime`, `uuid` quando estritamente necessario). **Isolada dentro de cada app.**
 
@@ -326,7 +326,7 @@ Dataclasses representando conceitos de dominio. Cada entidade e um **`@dataclass
 **Padrao:**
 
 ```python
-# apps/user/src/user/domain/entity/user.py
+# apps/user/user/domain/entity/user.py
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -362,7 +362,7 @@ class User:
 **Erros de dominio** (cada app define os seus em `entity/errors.py`):
 
 ```python
-# apps/user/src/user/domain/entity/errors.py
+# apps/user/user/domain/entity/errors.py
 
 
 class DomainError(Exception):
@@ -409,7 +409,7 @@ Protocols definindo os use cases de dominio. Cada use case e representado por **
 **Estrutura de diretorios:**
 
 ```
-src/user/domain/usecase/
+user/domain/usecase/
 └── user/
     ├── create.py             # CreateUseCase (Protocol)
     ├── get_by_id.py          # GetByIdUseCase (Protocol)
@@ -419,7 +419,7 @@ src/user/domain/usecase/
 **Padrao:**
 
 ```python
-# apps/user/src/user/domain/usecase/user/create.py
+# apps/user/user/domain/usecase/user/create.py
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -442,7 +442,7 @@ class CreateUseCase(Protocol):
 ```
 
 ```python
-# apps/user/src/user/domain/usecase/user/get_by_id.py
+# apps/user/user/domain/usecase/user/get_by_id.py
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -459,7 +459,7 @@ class GetByIdUseCase(Protocol):
 ```
 
 ```python
-# apps/user/src/user/domain/usecase/user/list.py
+# apps/user/user/domain/usecase/user/list.py
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -497,7 +497,7 @@ Protocols definindo contratos de persistencia.
 **Padrao:**
 
 ```python
-# apps/user/src/user/domain/repository/user_repository.py
+# apps/user/user/domain/repository/user_repository.py
 from typing import Protocol
 
 from user.domain.entity.user import User
@@ -525,7 +525,7 @@ Protocols definindo contratos de mensageria/eventos.
 **Padrao:**
 
 ```python
-# apps/user/src/user/domain/event/user_event.py
+# apps/user/user/domain/event/user_event.py
 from typing import Protocol
 
 from user.domain.entity.user import User
@@ -550,7 +550,7 @@ Toda biblioteca externa utilizada no projeto **deve ser acessada via inversao de
 **Estrutura de diretorios:**
 
 ```
-src/user/domain/
+user/domain/
 ├── crypt/
 │   └── hasher.py              # Protocol para hashing de senhas
 ├── token/
@@ -562,7 +562,7 @@ src/user/domain/
 **Padrao:**
 
 ```python
-# apps/user/src/user/domain/crypt/hasher.py
+# apps/user/user/domain/crypt/hasher.py
 from typing import Protocol
 
 
@@ -579,7 +579,7 @@ class Hasher(Protocol):
 
 ---
 
-## Camada de Aplicacao (`src/<app>/application/`)
+## Camada de Aplicacao (`<app>/application/`)
 
 Contem a **implementacao** dos use cases. Orquestra entidades, repositorios e eventos. **Isolada dentro de cada app.**
 
@@ -590,7 +590,7 @@ Implementacoes dos use cases, organizadas em **subpastas por contexto de dominio
 **Estrutura de diretorios:**
 
 ```
-src/user/application/usecase/
+user/application/usecase/
 └── user/
     ├── create_usecase.py           # CreateUseCase class + perform
     ├── get_by_id_usecase.py
@@ -603,7 +603,7 @@ tests/unit/application/usecase/user/
 **Padrao:**
 
 ```python
-# apps/user/src/user/application/usecase/user/create_usecase.py
+# apps/user/user/application/usecase/user/create_usecase.py
 import contextlib
 
 from user.domain.entity.errors import UserAlreadyExistsError
@@ -647,7 +647,7 @@ class CreateUseCase:
 
 ---
 
-## Camada de Infraestrutura (`src/<app>/infrastructure/`)
+## Camada de Infraestrutura (`<app>/infrastructure/`)
 
 Implementa contratos de dominio usando tecnologias concretas e gerencia a configuracao da aplicacao. Cada binario conecta apenas o que precisa.
 
@@ -668,7 +668,7 @@ Ele centraliza:
 **Estrutura do `pkg/controller/`:**
 
 ```
-pkg/src/org_pkg/controller/
+pkg/org_pkg/controller/
 ├── base_controller.py      # BaseController + handle/bind_and_handle (template method)
 ├── request_context.py      # RequestContext dataclass
 ├── validation.py           # format_validation_error + parse_query
@@ -680,7 +680,7 @@ pkg/src/org_pkg/controller/
 **`pkg/controller/request_context.py` — RequestContext:**
 
 ```python
-# pkg/src/org_pkg/controller/request_context.py
+# pkg/org_pkg/controller/request_context.py
 from dataclasses import dataclass
 
 from structlog.stdlib import BoundLogger
@@ -703,7 +703,7 @@ class RequestContext:
 **`pkg/controller/errors.py` — Erros HTTP genericos:**
 
 ```python
-# pkg/src/org_pkg/controller/errors.py
+# pkg/org_pkg/controller/errors.py
 
 
 class HttpError(Exception):
@@ -724,7 +724,7 @@ class ValidationError(HttpError):
 **`pkg/controller/responses.py` — resposta JSON padronizada:**
 
 ```python
-# pkg/src/org_pkg/controller/responses.py
+# pkg/org_pkg/controller/responses.py
 import json
 from datetime import datetime
 from typing import Any
@@ -753,7 +753,7 @@ def json_response(status_code: int, data: Any) -> Response:
 **`pkg/controller/base_controller.py` — BaseController (template method):**
 
 ```python
-# pkg/src/org_pkg/controller/base_controller.py
+# pkg/org_pkg/controller/base_controller.py
 import functools
 from collections.abc import Awaitable, Callable
 from uuid import uuid4
@@ -865,7 +865,7 @@ class BaseController:
 O projeto utiliza **Pydantic v2** como engine de validacao. Todo body e validado com `model_validate` dentro do `bind_and_handle` — o handler nunca ve input invalido.
 
 ```python
-# pkg/src/org_pkg/controller/validation.py
+# pkg/org_pkg/controller/validation.py
 from pydantic import BaseModel, ValidationError as PydanticValidationError
 from robyn import Request
 
@@ -954,7 +954,7 @@ class CreateOrderInput(ApiModel):
 **`pkg/controller/error_mapper.py` — Mapeamento extensivel de erros:**
 
 ```python
-# pkg/src/org_pkg/controller/error_mapper.py
+# pkg/org_pkg/controller/error_mapper.py
 from org_pkg.controller.errors import HttpError
 
 
@@ -989,7 +989,7 @@ class ErrorMapper:
 **Registro dos erros no app (wiring no `bin/api.py`):**
 
 ```python
-# apps/user/src/user/bin/api.py
+# apps/user/user/bin/api.py
 from org_pkg.controller import ErrorMapper
 
 from user.domain.entity.errors import (
@@ -1020,7 +1020,7 @@ def provide_error_mapper() -> ErrorMapper:
 #### Controller Concreto — Exemplo Simples (sem transaction)
 
 ```python
-# apps/user/src/user/infrastructure/controller/user_controller.py
+# apps/user/user/infrastructure/controller/user_controller.py
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from pydantic.alias_generators import to_camel
 from robyn import Request, Robyn, SubRouter
@@ -1138,7 +1138,7 @@ class UserController(BaseController):
 Quando um endpoint precisa executar **multiplas operacoes atomicas** (ex: criar order + items + atualizar estoque), o controller orquestra a transaction via `Transactor`:
 
 ```python
-# apps/billing/src/billing/infrastructure/controller/order_controller.py
+# apps/billing/billing/infrastructure/controller/order_controller.py
 from asyncpg import Connection
 from robyn import Request, Robyn, SubRouter
 
@@ -1232,7 +1232,7 @@ class OrderController(BaseController):
 O `Transactor` e a **unica excecao documentada** de import externo no dominio: importa **apenas o tipo** `Connection` do `asyncpg` sob `TYPE_CHECKING` (sem codigo em runtime), cumprindo o papel que um handle de transaction da stdlib cumpriria.
 
 ```python
-# apps/billing/src/billing/domain/repository/transactor.py
+# apps/billing/billing/domain/repository/transactor.py
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
@@ -1245,7 +1245,7 @@ class Transactor(Protocol):
 ```
 
 ```python
-# apps/billing/src/billing/infrastructure/repository/transactor.py
+# apps/billing/billing/infrastructure/repository/transactor.py
 from collections.abc import Awaitable, Callable
 
 from asyncpg import Connection
@@ -1264,7 +1264,7 @@ class PostgresTransactor:
 **Helper compartilhado (`pkg/postgres/tx.py`):**
 
 ```python
-# pkg/src/org_pkg/postgres/tx.py
+# pkg/org_pkg/postgres/tx.py
 from collections.abc import Awaitable, Callable
 
 from asyncpg import Connection, Pool
@@ -1285,7 +1285,7 @@ async def run_in_tx[T](pool: Pool, fn: Callable[[Connection], Awaitable[T]]) -> 
 Quando um repositorio participa de uma transaction externa, expoe metodos que recebem `Connection`:
 
 ```python
-# apps/billing/src/billing/domain/repository/order_repository.py
+# apps/billing/billing/domain/repository/order_repository.py
 from typing import TYPE_CHECKING, Protocol
 
 from billing.domain.entity.order import Order, OrderItem
@@ -1305,7 +1305,7 @@ class OrderRepository(Protocol):
 ```
 
 ```python
-# apps/billing/src/billing/infrastructure/repository/order_repository.py
+# apps/billing/billing/infrastructure/repository/order_repository.py
 
 
 class PostgresOrderRepository:
@@ -1377,7 +1377,7 @@ Handlers de consumo NATS JetStream. Cada subscriber consome de um subject especi
 **Padrao:**
 
 ```python
-# apps/billing/src/billing/infrastructure/subscriber/user_subscriber.py
+# apps/billing/billing/infrastructure/subscriber/user_subscriber.py
 import json
 from uuid import uuid4
 
@@ -1451,7 +1451,7 @@ Implementacoes de repositorio usando PostgreSQL via `asyncpg`. Queries SQL escri
 **Padrao:**
 
 ```python
-# apps/user/src/user/infrastructure/repository/user_repository.py
+# apps/user/user/infrastructure/repository/user_repository.py
 from asyncpg import Record
 
 from org_pkg.postgres import Database
@@ -1558,7 +1558,7 @@ Implementacoes de eventos usando NATS JetStream.
 **Padrao:**
 
 ```python
-# apps/user/src/user/infrastructure/publisher/user_publisher.py
+# apps/user/user/infrastructure/publisher/user_publisher.py
 from org_pkg.event.user import SUBJECT_USER_CREATED, SUBJECT_USER_UPDATED
 from org_pkg.nats import Publisher
 
@@ -1587,7 +1587,7 @@ class UserPublisher:
 **Publisher generico compartilhado (`pkg/nats/publisher.py`):**
 
 ```python
-# pkg/src/org_pkg/nats/publisher.py
+# pkg/org_pkg/nats/publisher.py
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -1634,7 +1634,7 @@ Implementacoes concretas dos Protocols de bibliotecas externas definidos em `dom
 **Padrao:**
 
 ```python
-# apps/user/src/user/infrastructure/adapter/bcrypt_adapter.py
+# apps/user/user/infrastructure/adapter/bcrypt_adapter.py
 import asyncio
 
 import bcrypt
@@ -1671,7 +1671,7 @@ Configuracao da aplicacao e container de infraestrutura compartilhada.
 **`config.py`** — Dataclass de configuracao e carregamento de variaveis de ambiente:
 
 ```python
-# apps/user/src/user/infrastructure/config/config.py
+# apps/user/user/infrastructure/config/config.py
 import os
 from dataclasses import dataclass
 
@@ -1726,7 +1726,7 @@ O `.env` e carregado no **topo do `main()` de cada binario** com `load_dotenv()`
 **`container.py`** — Container de infraestrutura compartilhada (dependency-injector):
 
 ```python
-# apps/user/src/user/infrastructure/config/container.py
+# apps/user/user/infrastructure/config/container.py
 from dependency_injector import containers, providers
 
 from org_pkg.logger import create_logger
@@ -1775,7 +1775,7 @@ class InfraContainer(containers.DeclarativeContainer):
 
 ## Camada de Pacotes (`pkg/` — workspace member `org-pkg`, modulo `org_pkg`)
 
-Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `src/` de nenhum app.
+Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam o pacote de nenhum app.
 
 | Modulo | Import | Responsabilidade |
 |---|---|---|
@@ -1788,7 +1788,7 @@ Bibliotecas reutilizaveis compartilhadas entre todos os apps. Nunca importam `sr
 **`pkg/logger/logger.py`:**
 
 ```python
-# pkg/src/org_pkg/logger/logger.py
+# pkg/org_pkg/logger/logger.py
 import logging
 
 import structlog
@@ -1814,7 +1814,7 @@ def create_logger(service: str, version: str, level: str) -> BoundLogger:
 **`pkg/postgres/conn.py`:**
 
 ```python
-# pkg/src/org_pkg/postgres/conn.py
+# pkg/org_pkg/postgres/conn.py
 from dataclasses import dataclass
 
 import asyncpg
@@ -1868,7 +1868,7 @@ class Database:
 **`pkg/nats/conn.py` e `pkg/nats/stream.py`:**
 
 ```python
-# pkg/src/org_pkg/nats/conn.py
+# pkg/org_pkg/nats/conn.py
 from dataclasses import dataclass
 
 import nats
@@ -1917,7 +1917,7 @@ class NatsClient:
 ```
 
 ```python
-# pkg/src/org_pkg/nats/stream.py
+# pkg/org_pkg/nats/stream.py
 from dataclasses import dataclass
 
 from nats.js import JetStreamManager
@@ -1956,7 +1956,7 @@ async def ensure_stream(jsm: JetStreamManager, opts: StreamOptions) -> None:
 **`pkg/nats/subscriber.py`:**
 
 ```python
-# pkg/src/org_pkg/nats/subscriber.py
+# pkg/org_pkg/nats/subscriber.py
 import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -2038,7 +2038,7 @@ async def subscribe(
 **Regras:**
 - Sem estado global de modulo (sem conexao criada no import — tudo instanciado por classe/funcao e injetado).
 - Funcoes e classes recebem e retornam dependencias explicitamente.
-- Nunca importa nada de `apps/*/src/`.
+- Nunca importa nada de `apps/*`.
 - Pode ser usado por outros projetos.
 
 ---
@@ -2056,7 +2056,7 @@ Cada binario (`bin/api.py`, `bin/consumer.py`) e um **composition root** com seu
 ### Composicao no `bin/api.py` da API
 
 ```python
-# apps/user/src/user/bin/api.py
+# apps/user/user/bin/api.py
 from dependency_injector import providers
 from dotenv import load_dotenv
 from robyn import Robyn
@@ -2169,7 +2169,7 @@ if __name__ == "__main__":
 Cada binario de consumer compoe seu proprio container. **Sem Robyn, sem controllers, sem rotas** — asyncio puro.
 
 ```python
-# apps/billing/src/billing/bin/consumer.py
+# apps/billing/billing/bin/consumer.py
 import asyncio
 import signal
 
@@ -2309,7 +2309,7 @@ if __name__ == "__main__":
 
 | Localizacao | Padrao | Exemplo |
 |---|---|---|
-| `src/<app>/bin/` | `<binary>.py` | `api.py`, `consumer.py` |
+| `<app>/bin/` | `<binary>.py` | `api.py`, `consumer.py` |
 | `domain/entity/` | `<name>.py` | `user.py` |
 | `domain/usecase/<context>/` | `<action>.py` | `user/create.py` |
 | `domain/repository/` | `<name>_repository.py` | `user_repository.py` |
@@ -2412,7 +2412,7 @@ Cada app tem seu proprio banco (database-per-service). Comunicacao entre apps e 
 ### Contratos de Eventos Compartilhados (`pkg/event/`)
 
 ```python
-# pkg/src/org_pkg/event/envelope.py
+# pkg/org_pkg/event/envelope.py
 from pydantic import BaseModel
 
 
@@ -2427,7 +2427,7 @@ class Envelope[T](BaseModel):
 ```
 
 ```python
-# pkg/src/org_pkg/event/user.py
+# pkg/org_pkg/event/user.py
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
@@ -2459,7 +2459,7 @@ Exemplo: adicionando o dominio `Order` no app `billing`.
 
 ### Passo 1 — Entidade de Dominio
 
-Crie `apps/billing/src/billing/domain/entity/order.py`:
+Crie `apps/billing/billing/domain/entity/order.py`:
 
 ```python
 from dataclasses import dataclass
@@ -2492,7 +2492,7 @@ class Order:
 
 Crie um Protocol por use case, organizados por contexto.
 
-Crie `apps/billing/src/billing/domain/usecase/order/create.py`:
+Crie `apps/billing/billing/domain/usecase/order/create.py`:
 
 ```python
 from dataclasses import dataclass
@@ -2518,7 +2518,7 @@ class CreateUseCase(Protocol):
 
 ### Passo 2b — Protocols de Dominio (Repository e Event)
 
-Crie `apps/billing/src/billing/domain/repository/order_repository.py`:
+Crie `apps/billing/billing/domain/repository/order_repository.py`:
 
 ```python
 from typing import Protocol
@@ -2531,7 +2531,7 @@ class OrderRepository(Protocol):
     async def find_by_id(self, id: str) -> Order | None: ...
 ```
 
-Crie `apps/billing/src/billing/domain/event/order_event.py` (se aplicavel):
+Crie `apps/billing/billing/domain/event/order_event.py` (se aplicavel):
 
 ```python
 from typing import Protocol
@@ -2545,7 +2545,7 @@ class OrderEvent(Protocol):
 
 ### Passo 3 — Use Case de Aplicacao
 
-Crie `apps/billing/src/billing/application/usecase/order/create_usecase.py`:
+Crie `apps/billing/billing/application/usecase/order/create_usecase.py`:
 
 ```python
 from billing.domain.entity.order import Order
@@ -2565,19 +2565,19 @@ class CreateUseCase:
 
 ### Passo 4 — Repositorio de Infraestrutura
 
-Crie `apps/billing/src/billing/infrastructure/repository/order_repository.py` (`PostgresOrderRepository`, queries manuais com `$1`, `RETURNING "id"` + `fetchval`, `None` quando nao encontrado).
+Crie `apps/billing/billing/infrastructure/repository/order_repository.py` (`PostgresOrderRepository`, queries manuais com `$1`, `RETURNING "id"` + `fetchval`, `None` quando nao encontrado).
 
 ### Passo 5 — Publisher de Infraestrutura (se aplicavel)
 
-Crie `apps/billing/src/billing/infrastructure/publisher/order_publisher.py` (`OrderPublisher` satisfazendo `OrderEvent`; subject e data model em `pkg/src/org_pkg/event/billing.py`).
+Crie `apps/billing/billing/infrastructure/publisher/order_publisher.py` (`OrderPublisher` satisfazendo `OrderEvent`; subject e data model em `pkg/org_pkg/event/billing.py`).
 
 ### Passo 6a — Controller (se a API precisar)
 
-Crie `apps/billing/src/billing/infrastructure/controller/order_controller.py` (estende `BaseController`, modelos Pydantic no proprio arquivo, `register_routes`).
+Crie `apps/billing/billing/infrastructure/controller/order_controller.py` (estende `BaseController`, modelos Pydantic no proprio arquivo, `register_routes`).
 
 ### Passo 6b — Subscriber (se o Consumer precisar)
 
-Crie `apps/billing/src/billing/infrastructure/subscriber/order_subscriber.py` (`handle_<event_name>` com `ack`/`nak`/`term`).
+Crie `apps/billing/billing/infrastructure/subscriber/order_subscriber.py` (`handle_<event_name>` com `ack`/`nak`/`term`).
 
 ### Passo 7 — Migration SQL
 
@@ -2604,7 +2604,7 @@ Aplicar com `dbmate --migrations-dir migrations/billing up` (a `DATABASE_URL` de
 
 ### Passo 8 — Composicao dependency-injector
 
-**Para a API** — atualize o `ApiContainer` em `apps/billing/src/billing/bin/api.py`:
+**Para a API** — atualize o `ApiContainer` em `apps/billing/billing/bin/api.py`:
 
 ```python
 class ApiContainer(InfraContainer):
@@ -2626,7 +2626,7 @@ Registre as rotas no mesmo arquivo (antes do `app.start`):
 container.order_controller().register_routes(app)
 ```
 
-**Para o Consumer** — atualize `apps/billing/src/billing/bin/consumer.py` registrando o subscriber e o `subscribe(...)` do novo consumer duravel.
+**Para o Consumer** — atualize `apps/billing/billing/bin/consumer.py` registrando o subscriber e o `subscribe(...)` do novo consumer duravel.
 
 ### Passo 9 — Testes
 
@@ -2653,16 +2653,16 @@ Escreva docstrings nos handlers, defina `openapi_tags` nas rotas e verifique `ht
 - [ ] `infrastructure/controller/<name>_controller.py` — Controller Robyn + modelos Pydantic (se API)
 - [ ] `infrastructure/subscriber/<name>_subscriber.py` — Subscriber NATS (se Consumer)
 - [ ] `migrations/<app>/NNNN_<descricao>.sql` — Migration dbmate (`-- migrate:up` / `-- migrate:down`)
-- [ ] `apps/<app>/src/<app>/bin/api.py` — Registrar no container e chamar `register_routes` (se API)
-- [ ] `apps/<app>/src/<app>/bin/consumer.py` — Registrar subscriber e `subscribe(...)` (se Consumer)
+- [ ] `apps/<app>/<app>/bin/api.py` — Registrar no container e chamar `register_routes` (se API)
+- [ ] `apps/<app>/<app>/bin/consumer.py` — Registrar subscriber e `subscribe(...)` (se Consumer)
 - [ ] Docstrings + `openapi_tags` nos handlers e spec verificado em `/docs` (se API)
 - [ ] Rodar os gates: `make typecheck`, `make lint`, `make format-check`, `make test`
 
 ### Checklist — Novo App
 
-- [ ] Criar `apps/<app-name>/pyproject.toml` (`org-<app-name>`, dependencia `org-pkg`, hatchling com `src/<app-name>`)
+- [ ] Criar `apps/<app-name>/pyproject.toml` (`org-<app-name>`, dependencia `org-pkg`, hatchling com `<app-name>`)
 - [ ] Confirmar que o `[tool.uv.workspace]` da raiz cobre o novo app (`apps/*`) e rodar `uv sync`
-- [ ] Criar `apps/<app-name>/src/<app-name>/bin/api.py` e/ou `bin/consumer.py`
+- [ ] Criar `apps/<app-name>/<app-name>/bin/api.py` e/ou `bin/consumer.py`
 - [ ] Criar `infrastructure/config/config.py` (`AppConfig` + `load_config`) e `container.py` (`InfraContainer`)
 - [ ] Herdar de `InfraContainer` no container do binario e registrar apenas repositorios, publishers, adapters, use cases e handlers necessarios
 - [ ] Definir startup (`Robyn` + `register_routes` + `startup_handler` + `app.start` para API; `ensure_stream` + `subscribe` para Consumer)
